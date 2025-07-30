@@ -1,0 +1,7 @@
+keyboard>=0.13.5
+pygetwindow>=0.0.9
+pywin32>=306
+argparse>=1.4.0
+pyautogui>=0.9.53
+intervaltree>=3.1.0
+# Standard libraries (socket, json, os, time, sys) do not need
