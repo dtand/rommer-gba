@@ -4,7 +4,10 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-
+*.pyc
+*.pyo
+*.pyd
+.Python
 
 # Lua
 *.luac
@@ -20,3 +23,63 @@ build/
 
 # Environment files
 data/
+venv/
+
+# Game data and logs
+*.csv
+*.db
+*.sqlite
+*.sqlite3
+training_data.jsonl
+individual_training_data.jsonl
+gba_training.db
+
+# BizHawk output files
+event_logs/
+snapshots/
+*.png
+*.bmp
+*.jpg
+*.jpeg
+
+# Machine Learning / AI
+models/
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.model
+*.weights
+checkpoints/
+runs/
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Flask/Web app
+instance/
+.webassets-cache
+.coverage
+htmlcov/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Large data files
+*.zip
+*.7z
+*.rar
+*.tar.gz
