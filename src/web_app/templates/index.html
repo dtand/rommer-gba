@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Frame Grid Annotator</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .frame-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+        .frame-item { border: 1px solid #ccc; padding: 5px; text-align: center; }
+        .frame-item.selected { border: 2px solid #007bff; background: #e6f0ff; }
+        .frame-item.annotated { border: 4px solid #28a745 !important; }
+        img { max-width: 120px; max-height: 90px; display: block; margin: 0 auto 5px; }
+        .annotation { width: 100%; }
+    </style>
+</head>
+<body>
+    <h1>Frame Grid Annotator</h1>
+    <form id="frame-form" onsubmit="return false;">
+        <div class="frame-grid" id="frame-grid">
+            <!-- Frames will be loaded here -->
+        </div>
+    </form>
+    <!-- Modal for annotation input -->
+    <div id="annotation-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:1000;">
+        <div style="background:#fff; max-width:400px; margin:10vh auto; padding:20px; border-radius:8px; box-shadow:0 2px 8px #0003;">
+            <h2>Annotate Selected Frames</h2>
+            <form id="annotation-form">
+                <label>Context:<br><input type="text" id="context" name="context" style="width:100%"></label><br><br>
+                <label>Scene:<br><input type="text" id="scene" name="scene" style="width:100%"></label><br><br>
+                <label>Tags (comma separated):<br><input type="text" id="tags" name="tags" style="width:100%"></label><br><br>
+                <label>Description:<br><textarea id="description" name="description" style="width:100%" rows="3"></textarea></label><br><br>
+                <button type="submit">Save Annotation</button>
+                <button type="button" onclick="closeModal()">Cancel</button>
+            </form>
+        </div>
+    </div>
+    <script>
+let selectedFrames = new Set();
+let lastSelectedFrame = null;
+let frameOrder = [];
+let allFrames = [];
+let framesWithContext = [];
+let framesLoaded = 0;
+const FRAMES_PER_BATCH = 50;
+let loadingFrames = false;
+
+function toggleFrame(frame, event) {
+    const el = document.getElementById('frame-' + frame);
+    if (event && event.shiftKey && lastSelectedFrame !== null && frameOrder.length > 0) {
+        // Range selection
+        const startIdx = frameOrder.indexOf(String(lastSelectedFrame));
+        const endIdx = frameOrder.indexOf(String(frame));
+        if (startIdx !== -1 && endIdx !== -1) {
+            const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+            for (let i = from; i <= to; i++) {
+                const f = frameOrder[i];
+                selectedFrames.add(f);
+                const div = document.getElementById('frame-' + f);
+                if (div) div.classList.add('selected');
+            }
+        }
+    } else {
+        if (selectedFrames.has(frame)) {
+            selectedFrames.delete(frame);
+            el.classList.remove('selected');
+        } else {
+            selectedFrames.add(frame);
+            el.classList.add('selected');
+        }
+        lastSelectedFrame = frame;
+    }
+}
+        function loadFrames() {
+            fetch('/api/frames')
+                .then(res => res.json())
+                .then(data => {
+                    frameOrder = data.frames.map(f => String(f.frame));
+                    allFrames = data.frames;
+                    framesWithContext = [];
+                    framesLoaded = 0;
+                    const grid = document.getElementById('frame-grid');
+                    grid.innerHTML = '';
+                    loadNextFrames();
+                });
+        }
+
+        function loadNextFrames() {
+            if (loadingFrames) return;
+            loadingFrames = true;
+            const nextBatch = allFrames.slice(framesLoaded, framesLoaded + FRAMES_PER_BATCH);
+            const framePromises = nextBatch.map(frame =>
+                fetch(`/api/frame_context/${frame.frame}`)
+                    .then(res => ({ frame: frame.frame, hasContext: res.status === 200 }))
+                    .catch(() => ({ frame: frame.frame, hasContext: false }))
+            );
+            Promise.all(framePromises).then(batchWithContext => {
+                framesWithContext = framesWithContext.concat(batchWithContext);
+                const grid = document.getElementById('frame-grid');
+                batchWithContext.forEach(({ frame, hasContext }) => {
+                    const div = document.createElement('div');
+                    div.className = 'frame-item' + (hasContext ? ' annotated' : '');
+                    div.id = 'frame-' + frame;
+                    div.onclick = (e) => toggleFrame(frame, e);
+                    div.innerHTML = `<img src="/api/frame_image/${frame}" alt="Frame ${frame}"><br>Frame ${frame}`;
+                    div.onmouseenter = (e) => showFrameDataPopup(frame, div);
+                    div.onmouseleave = hideFrameDataPopup;
+                    grid.appendChild(div);
+                });
+// Popup for frame event.json data
+let popupDiv = null;
+function showFrameDataPopup(frame, anchorEl) {
+    fetch(`/api/frame_event/${frame}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+            if (!data) return;
+            if (!popupDiv) {
+                popupDiv = document.createElement('div');
+                popupDiv.style.position = 'fixed';
+                popupDiv.style.zIndex = 2000;
+                popupDiv.style.background = '#fff';
+                popupDiv.style.border = '1px solid #888';
+                popupDiv.style.boxShadow = '0 2px 8px #0003';
+                popupDiv.style.padding = '10px';
+                popupDiv.style.maxWidth = '400px';
+                popupDiv.style.fontSize = '12px';
+                document.body.appendChild(popupDiv);
+            }
+            let html = `<b>Frame ${frame} event.json</b><br><pre style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;">`;
+            html += JSON.stringify(data, null, 2);
+            html += '</pre>';
+            popupDiv.innerHTML = html;
+            // Position popup near anchorEl
+            const rect = anchorEl.getBoundingClientRect();
+            popupDiv.style.left = (rect.right + 10) + 'px';
+            popupDiv.style.top = (rect.top) + 'px';
+            popupDiv.style.display = 'block';
+        });
+}
+function hideFrameDataPopup() {
+    if (popupDiv) popupDiv.style.display = 'none';
+}
+                framesLoaded += batchWithContext.length;
+                loadingFrames = false;
+            });
+        }
+
+        window.addEventListener('scroll', function() {
+            const scrollY = window.scrollY || window.pageYOffset;
+            const viewport = window.innerHeight;
+            const fullHeight = document.body.offsetHeight;
+            if (scrollY + viewport > fullHeight - 300) {
+                if (framesLoaded < allFrames.length) {
+                    loadNextFrames();
+                }
+            }
+        });
+        function openModal() {
+            document.getElementById('annotation-modal').style.display = 'block';
+            document.getElementById('scene').focus();
+        }
+        function closeModal() {
+            document.getElementById('annotation-modal').style.display = 'none';
+            document.getElementById('annotation-form').reset();
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                if (selectedFrames.size > 0) {
+                    openModal();
+                    e.preventDefault();
+                }
+            }
+        });
+        document.getElementById('annotation-form').onsubmit = function(e) {
+            e.preventDefault();
+            const context = document.getElementById('context').value;
+            const scene = document.getElementById('scene').value;
+            const tags = document.getElementById('tags').value;
+            const description = document.getElementById('description').value;
+            const framesToUpdate = Array.from(selectedFrames);
+            fetch('/api/annotate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ frames: framesToUpdate, annotation: { context, scene, tags, description } })
+            }).then(res => res.json()).then(data => {
+                // Only update the annotated frames' borders
+                framesToUpdate.forEach(frame => {
+                    const div = document.getElementById('frame-' + frame);
+                    if (div) div.classList.add('annotated');
+                });
+                selectedFrames.clear();
+                closeModal();
+            });
+        };
+        window.onload = loadFrames;
+    </script>
+</body>
+</html>
