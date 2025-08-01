@@ -48,6 +48,8 @@ print(f"Parsing CSV and writing per-frame-set JSON arrays to {session_dir}...")
 # Gather all events per frame set
 frame_set_events = {}
 frame_set_frames = {}  # Track which frames belong to each frame set
+frame_pcs = {}  # Track PCs for each frame set
+frame_keys = {}  # Track current keys for each frame set
 with open(csv_path, newline='', encoding='utf-8') as csvfile:
     reader = csv.reader(csvfile)
     for row in reader:
@@ -99,6 +101,8 @@ with open(csv_path, newline='', encoding='utf-8') as csvfile:
             "pc": pc,
             "current_keys": mapped_current_keys
         }
+        frame_pcs[frame] = pc
+        frame_keys[frame] = mapped_current_keys 
         if frame_set_id not in frame_set_events:
             frame_set_events[frame_set_id] = []
         frame_set_events[frame_set_id].append(data)
@@ -122,12 +126,16 @@ for frame_set_id, events in frame_set_events.items():
         # Fallback to last event if no events from final frame
         first_final = events[-1]
     
+    frames_in_set = sorted(list(frame_set_frames[frame_set_id]))
+    pcs = [frame_pcs.get(f, None) for f in frames_in_set]
+    current_keys = [frame_keys.get(f, []) for f in frames_in_set]
+
     top_level = {
         "timestamp": first_final["timestamp"],
-        "pc": first_final["pc"],
-        "current_keys": first_final["current_keys"],
+        "program_counters": pcs,
+        "buttons": current_keys,
         "frame_set_id": frame_set_id,
-        "frames_in_set": sorted(list(frame_set_frames[frame_set_id])),
+        "frames_in_set": frames_in_set,
         "memory_changes": []
     }
     
