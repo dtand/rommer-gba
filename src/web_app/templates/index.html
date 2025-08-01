@@ -9,8 +9,9 @@
         .session-selector { margin-bottom: 20px; }
         .frame-grid { display: flex; flex-wrap: wrap; gap: 10px; }
         .frame-item { border: 1px solid #ccc; padding: 5px; text-align: center; }
-        .frame-item.selected { border: 2px solid #007bff; background: #e6f0ff; }
+        .frame-item.selected { border: 4px solid #007bff; background: #e6f0ff; }
         .frame-item.annotated { border: 4px solid #28a745 !important; }
+        .frame-item.selected.annotated { border: 4px solid #007bff !important; background: #e6f0ff; }
         img { max-width: 120px; max-height: 90px; display: block; margin: 0 auto 5px; }
         .annotation { width: 100%; }
         select { padding: 8px; margin: 5px; }
@@ -31,6 +32,13 @@
         </div>
         <div id="current-session-info" style="display:none;">
             <strong>Current Session:</strong> <span id="current-session-id"></span><br>
+            <div id="completion-info" style="margin: 10px 0;">
+                <strong>Completion:</strong> <span id="completion-percentage">0%</span> 
+                (<span id="annotated-count">0</span> of <span id="total-frames">0</span> frames annotated)
+                <div style="background: #e0e0e0; height: 10px; border-radius: 5px; margin: 5px 0; overflow: hidden;">
+                    <div id="completion-bar" style="background: #28a745; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                </div>
+            </div>
             <span id="session-metadata"></span>
         </div>
     </div>
@@ -64,6 +72,108 @@ let framesLoaded = 0;
 const FRAMES_PER_BATCH = 50;
 let loadingFrames = false;
 let currentSessionId = null;
+
+// Input history for modal form fields
+let inputHistory = {
+    context: [],
+    scene: [],
+    tags: [],
+    description: []
+};
+let currentHistoryIndex = {
+    context: -1,
+    scene: -1,
+    tags: -1,
+    description: -1
+};
+
+// Load input history from localStorage
+function loadInputHistory() {
+    const stored = localStorage.getItem('annotationInputHistory');
+    if (stored) {
+        inputHistory = JSON.parse(stored);
+    }
+}
+
+// Save input history to localStorage
+function saveInputHistory() {
+    localStorage.setItem('annotationInputHistory', JSON.stringify(inputHistory));
+}
+
+// Add value to input history
+function addToHistory(fieldName, value) {
+    if (value && value.trim()) {
+        // Remove existing occurrence if present
+        const index = inputHistory[fieldName].indexOf(value);
+        if (index > -1) {
+            inputHistory[fieldName].splice(index, 1);
+        }
+        // Add to beginning of array
+        inputHistory[fieldName].unshift(value);
+        // Keep only last 20 entries
+        if (inputHistory[fieldName].length > 20) {
+            inputHistory[fieldName] = inputHistory[fieldName].slice(0, 20);
+        }
+        saveInputHistory();
+    }
+}
+
+// Handle arrow key navigation in form fields
+function setupFormFieldNavigation() {
+    const fields = ['context', 'scene', 'tags', 'description'];
+    
+    fields.forEach(fieldName => {
+        const field = document.getElementById(fieldName);
+        field.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                
+                const history = inputHistory[fieldName];
+                if (history.length === 0) return;
+                
+                if (e.key === 'ArrowUp') {
+                    currentHistoryIndex[fieldName] = Math.min(currentHistoryIndex[fieldName] + 1, history.length - 1);
+                } else if (e.key === 'ArrowDown') {
+                    currentHistoryIndex[fieldName] = Math.max(currentHistoryIndex[fieldName] - 1, -1);
+                }
+                
+                if (currentHistoryIndex[fieldName] >= 0) {
+                    field.value = history[currentHistoryIndex[fieldName]];
+                } else {
+                    field.value = '';
+                }
+            }
+        });
+        
+        // Reset history index when user starts typing
+        field.addEventListener('input', function(e) {
+            currentHistoryIndex[fieldName] = -1;
+        });
+    });
+}
+
+// Initialize input history on page load
+loadInputHistory();
+
+// Completion tracking functions
+function updateCompletionStats() {
+    const totalFrames = allFrames.length;
+    const annotatedFrames = document.querySelectorAll('.frame-item.annotated').length;
+    const percentage = totalFrames > 0 ? Math.round((annotatedFrames / totalFrames) * 100) : 0;
+    
+    document.getElementById('completion-percentage').textContent = percentage + '%';
+    document.getElementById('annotated-count').textContent = annotatedFrames;
+    document.getElementById('total-frames').textContent = totalFrames;
+    document.getElementById('completion-bar').style.width = percentage + '%';
+}
+
+function markFrameAsAnnotated(frameId) {
+    const frameDiv = document.getElementById('frame-' + frameId);
+    if (frameDiv) {
+        frameDiv.classList.add('annotated');
+        updateCompletionStats();
+    }
+}
 
 // Get session ID from URL or template variable
 function getCurrentSessionId() {
@@ -213,6 +323,9 @@ function loadNextFrames() {
             div.onmouseleave = hideFrameDataPopup;
             grid.appendChild(div);
         });
+        
+        // Update completion stats after loading frames
+        updateCompletionStats();
         framesLoaded += nextBatch.length;
         loadingFrames = false;
         
@@ -249,18 +362,44 @@ function showFrameDataPopup(frame, anchorEl) {
                 popupDiv.style.border = '1px solid #888';
                 popupDiv.style.boxShadow = '0 2px 8px #0003';
                 popupDiv.style.padding = '10px';
-                popupDiv.style.maxWidth = '400px';
+                popupDiv.style.maxWidth = '500px';
                 popupDiv.style.fontSize = '12px';
                 document.body.appendChild(popupDiv);
             }
-            let html = `<b>Frame ${frame} event.json</b><br><pre style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;">`;
+            let html = `<b>Frame ${frame} Data</b><br>`;
+            
+            // Display Frames
+            if (data.frames_in_set) {
+                html += `<b>Frames:</b> ${data.frames_in_set.join(', ')}<br>`;
+            }
+            
+            // Display Program Counters
+            if (data.pcs) {
+                html += `<b>Program Counters:</b><br>`;
+                data.pcs.forEach((pc, index) => {
+                    html += `&nbsp;&nbsp;[${index}]: ${pc}<br>`;
+                });
+            }
+            
+            // Display Buttons
+            if (data.buttons) {
+                html += `<b>Buttons:</b><br>`;
+                data.buttons.forEach((button, index) => {
+                    const buttonText = Array.isArray(button) ? button.join('+') : (button === 'None' ? 'None' : button);
+                    html += `&nbsp;&nbsp;[${index}]: ${buttonText}<br>`;
+                });
+            }
+            
+            // Show raw JSON in collapsible section for debugging
+            html += `<br><details><summary>Raw JSON</summary><pre style="white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;">`;
             html += JSON.stringify(data, null, 2);
-            html += '</pre>';
+            html += '</pre></details>';
+            
             popupDiv.innerHTML = html;
-            // Position popup near anchorEl
+            // Position popup above anchorEl
             const rect = anchorEl.getBoundingClientRect();
-            popupDiv.style.left = (rect.right + 10) + 'px';
-            popupDiv.style.top = (rect.top) + 'px';
+            popupDiv.style.left = rect.left + 'px';
+            popupDiv.style.top = (rect.top - popupDiv.offsetHeight - 10) + 'px';
             popupDiv.style.display = 'block';
         });
 }
@@ -281,6 +420,14 @@ function hideFrameDataPopup() {
         function openModal() {
             document.getElementById('annotation-modal').style.display = 'block';
             document.getElementById('scene').focus();
+            
+            // Reset history indices
+            Object.keys(currentHistoryIndex).forEach(key => {
+                currentHistoryIndex[key] = -1;
+            });
+            
+            // Set up form field navigation if not already done
+            setupFormFieldNavigation();
         }
         function closeModal() {
             document.getElementById('annotation-modal').style.display = 'none';
@@ -302,6 +449,12 @@ function hideFrameDataPopup() {
             const description = document.getElementById('description').value;
             const framesToUpdate = Array.from(selectedFrames);
             
+            // Add values to input history
+            addToHistory('context', context);
+            addToHistory('scene', scene);
+            addToHistory('tags', tags);
+            addToHistory('description', description);
+            
             fetch(apiUrl('annotate'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -318,6 +471,9 @@ function hideFrameDataPopup() {
                 });
                 selectedFrames.clear();
                 closeModal();
+                
+                // Update completion stats after saving annotations
+                updateCompletionStats();
             }).catch(err => {
                 console.error('Error saving annotation:', err);
                 alert('Error saving annotation');
