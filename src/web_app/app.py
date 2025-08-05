@@ -8,6 +8,25 @@ app.register_blueprint(frame_event_bp)
 # Set this to your per-frame output directory
 FRAME_BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', 'data'))
 
+@app.route('/static/annotation_config.json')
+def annotation_config():
+    """Serve the annotation configuration file"""
+    config_path = os.path.join(os.path.dirname(__file__), 'annotation_config.json')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_data = json.load(f)
+        return jsonify(config_data)
+    except FileNotFoundError:
+        # Return empty config if file doesn't exist
+        return jsonify({
+            "context_options": [],
+            "action_type_options": [],
+            "intent_options": [],
+            "outcome_options": []
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -124,13 +143,26 @@ def api_annotate(session_id=None):
         # Backward compatibility - look in root data directory
         base_dir = FRAME_BASE_DIR
     
-    # Ensure only the four fields are saved
+    # Save all annotation fields including action data
     annotation_obj = {
         'context': annotation.get('context', ''),
         'scene': annotation.get('scene', ''),
         'tags': annotation.get('tags', ''),
-        'description': annotation.get('description', '')
+        'description': annotation.get('description', ''),
+        'action_type': annotation.get('action_type', ''),
+        'intent': annotation.get('intent', ''),
+        'outcome': annotation.get('outcome', '')
     }
+    
+    # Remove empty action fields to keep the JSON clean
+    if not annotation_obj['action_type']:
+        del annotation_obj['action_type']
+    if not annotation_obj['intent']:
+        del annotation_obj['intent']
+    if not annotation_obj['outcome']:
+        del annotation_obj['outcome']
+    
+    print(f"Saving annotation: {annotation_obj}")  # Debug logging
     
     for frame in frames:
         frame_dir = os.path.join(base_dir, str(frame))

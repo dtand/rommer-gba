@@ -1,0 +1,290 @@
+{
+  "context_options": [
+    {
+      "value": "battle",
+      "label": "Battle"
+    },
+    {
+      "value": "context_transition",
+      "label": "Context Transition"
+    },
+    {
+      "value": "dialogue",
+      "label": "Dialogue"
+    },
+    {
+      "value": "ending_cutscene",
+      "label": "Ending Cutscene"
+    },
+    {
+      "value": "intro_cutscene",
+      "label": "Intro Cutscene"
+    },
+    {
+      "value": "inventory",
+      "label": "Inventory"
+    },
+    {
+      "value": "main_menu",
+      "label": "Main Menu"
+    },
+    {
+      "value": "options_menu",
+      "label": "Options Menu"
+    },
+    {
+      "value": "overworld",
+      "label": "Overworld"
+    },
+    {
+      "value": "overworld_storyline",
+      "label": "Overworld Storyline"
+    },
+    {
+      "value": "pause_menu",
+      "label": "Pause Menu"
+    },
+    {
+      "value": "player_keyboard_menu",
+      "label": "Player Keyboard Menu"
+    },
+    {
+      "value": "save_menu",
+      "label": "Save Menu"
+    },
+    {
+      "value": "shop",
+      "label": "Shop"
+    },
+    {
+      "value": "start_menu",
+      "label": "Start Menu"
+    },
+    {
+      "value": "status_screen",
+      "label": "Status Screen"
+    },
+    {
+      "value": "story_cutscene",
+      "label": "Story Cutscene"
+    },
+    {
+      "value": "transition",
+      "label": "Transition"
+    }
+  ],
+  "action_type_options": [
+    {
+      "value": "combat",
+      "label": "Combat"
+    },
+    {
+      "value": "confirm",
+      "label": "Confirm"
+    },
+    {
+      "value": "continue",
+      "label": "Continue"
+    },
+    {
+      "value": "cutscene_skip",
+      "label": "Cutscene Skip"
+    },
+    {
+      "value": "dialogue_choice",
+      "label": "Dialogue Choice"
+    },
+    {
+      "value": "dialogue_continue",
+      "label": "Dialogue Continue"
+    },
+    {
+      "value": "exploration",
+      "label": "Exploration"
+    },
+    {
+      "value": "idle_wait",
+      "label": "Idle/Wait"
+    },
+    {
+      "value": "interaction",
+      "label": "Interaction"
+    },
+    {
+      "value": "inventory_management",
+      "label": "Inventory Management"
+    },
+    {
+      "value": "menu_navigation",
+      "label": "Menu Navigation"
+    },
+    {
+      "value": "navigation",
+      "label": "Navigation"
+    },
+    {
+      "value": "other",
+      "label": "Other"
+    },
+    {
+      "value": "puzzle_solving",
+      "label": "Puzzle Solving"
+    },
+    {
+      "value": "scene_change_trigger",
+      "label": "Scene Change Trigger"
+    },
+    {
+      "value": "strike_attack",
+      "label": "Strike Attack"
+    },
+    {
+      "value": "support_action",
+      "label": "Support Action"
+    }
+  ],
+  "intent_options": [
+    {
+      "value": "access_menu",
+      "label": "Access Menu"
+    },
+    {
+      "value": "acesss_option",
+      "label": "Acesss Option"
+    },
+    {
+      "value": "add_new",
+      "label": "Add New"
+    },
+    {
+      "value": "backtrack_return",
+      "label": "Backtrack/Return"
+    },
+    {
+      "value": "begin_battle",
+      "label": "Begin Battle"
+    },
+    {
+      "value": "change_setting",
+      "label": "Change Setting"
+    },
+    {
+      "value": "collect_items",
+      "label": "Collect Items"
+    },
+    {
+      "value": "damage_enemy_party_member",
+      "label": "Damage Enemy Party Member"
+    },
+    {
+      "value": "escape_danger",
+      "label": "Escape Danger"
+    },
+    {
+      "value": "experiment_test",
+      "label": "Experiment/Test"
+    },
+    {
+      "value": "explore_area",
+      "label": "Explore Area"
+    },
+    {
+      "value": "left_arm_select",
+      "label": "Left Arm Select"
+    },
+    {
+      "value": "optimize_route",
+      "label": "Optimize Route"
+    },
+    {
+      "value": "party_leader_select",
+      "label": "Party Leader Select"
+    },
+    {
+      "value": "perform_support_skill",
+      "label": "Perform Support Skill"
+    },
+    {
+      "value": "proceed_medaparts",
+      "label": "Proceed Medaparts"
+    },
+    {
+      "value": "progress",
+      "label": "Progress"
+    },
+    {
+      "value": "progress_scenes",
+      "label": "Progress Scenes"
+    },
+    {
+      "value": "progress_story",
+      "label": "Progress Story"
+    },
+    {
+      "value": "recover_heal",
+      "label": "Recover/Heal"
+    },
+    {
+      "value": "right_arm_select",
+      "label": "Right Arm Select"
+    },
+    {
+      "value": "search_for_something",
+      "label": "Search for Something"
+    },
+    {
+      "value": "select_option",
+      "label": "Select Option"
+    },
+    {
+      "value": "skip_content",
+      "label": "Skip Content"
+    },
+    {
+      "value": "solve_problem",
+      "label": "Solve Problem"
+    },
+    {
+      "value": "start_game",
+      "label": "Start Game"
+    },
+    {
+      "value": "unknown",
+      "label": "Unknown"
+    },
+    {
+      "value": "upgrade_character",
+      "label": "Upgrade Character"
+    }
+  ],
+  "outcome_options": [
+    {
+      "value": "success",
+      "label": "Success"
+    },
+    {
+      "value": "failure",
+      "label": "Failure"
+    },
+    {
+      "value": "partial_success",
+      "label": "Partial Success"
+    },
+    {
+      "value": "blocked_prevented",
+      "label": "Blocked/Prevented"
+    },
+    {
+      "value": "interrupted",
+      "label": "Interrupted"
+    },
+    {
+      "value": "ongoing",
+      "label": "Ongoing"
+    },
+    {
+      "value": "neutral",
+      "label": "Neutral"
+    }
+  ]
+}

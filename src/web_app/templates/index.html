@@ -7,6 +7,7 @@
         body { font-family: Arial, sans-serif; margin: 20px; }
         .session-info { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
         .session-selector { margin-bottom: 20px; }
+        .frame-grid-container { margin: 0 40px; }
         .frame-grid { display: flex; flex-wrap: wrap; gap: 10px; }
         .frame-item { border: 1px solid #ccc; padding: 5px; text-align: center; }
         .frame-item.selected { border: 4px solid #007bff; background: #e6f0ff; }
@@ -16,6 +17,24 @@
         .annotation { width: 100%; }
         select { padding: 8px; margin: 5px; }
         button { padding: 8px 16px; margin: 5px; }
+        .recent-button { 
+            padding: 3px 8px; 
+            margin: 2px; 
+            font-size: 11px; 
+            background: #e9ecef; 
+            border: 1px solid #ced4da; 
+            border-radius: 3px; 
+            cursor: pointer; 
+            display: inline-block;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .recent-button:hover { 
+            background: #007bff; 
+            color: white; 
+        }
     </style>
 </head>
 <body>
@@ -44,21 +63,116 @@
     </div>
     
     <form id="frame-form" onsubmit="return false;">
-        <div class="frame-grid" id="frame-grid">
-            <!-- Frames will be loaded here -->
+        <div class="frame-grid-container">
+            <div class="frame-grid" id="frame-grid">
+                <!-- Frames will be loaded here -->
+            </div>
         </div>
     </form>
     <!-- Modal for annotation input -->
     <div id="annotation-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:1000;">
-        <div style="background:#fff; max-width:400px; margin:10vh auto; padding:20px; border-radius:8px; box-shadow:0 2px 8px #0003;">
+        <div style="background:#fff; max-width:800px; margin:3vh auto; padding:30px; border-radius:8px; box-shadow:0 2px 8px #0003;">
             <h2>Annotate Selected Frames</h2>
+            
+            <!-- Two-column header with button events and frame snapshot -->
+            <div id="modal-frame-snapshot" style="display: flex; gap: 20px; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 2px solid #dee2e6;">
+                <!-- Left Column: Previous Button Events -->
+                <div style="flex: 1;">
+                    <div style="font-weight: bold; color: #495057; margin-bottom: 10px;">Previous Button Events</div>
+                    <div id="button-events-display" style="font-family: monospace; font-size: 12px; background: #ffffff; padding: 10px; border: 1px solid #ced4da; border-radius: 3px; max-height: 150px; overflow-y: auto;">
+                        Loading button events...
+                    </div>
+                </div>
+                
+                <!-- Right Column: Frame Image -->
+                <div style="flex: 1; text-align: center;">
+                    <div style="margin-bottom: 8px; font-weight: bold; color: #495057;" id="snapshot-frame-label">Frame Preview</div>
+                    <img id="snapshot-image" src="" alt="Frame snapshot" style="max-width: 240px; max-height: 180px; border: 1px solid #ccc; border-radius: 3px;">
+                </div>
+            </div>
+            
             <form id="annotation-form">
-                <label>Context:<br><input type="text" id="context" name="context" style="width:100%"></label><br><br>
-                <label>Scene:<br><input type="text" id="scene" name="scene" style="width:100%"></label><br><br>
-                <label>Tags (comma separated):<br><input type="text" id="tags" name="tags" style="width:100%"></label><br><br>
-                <label>Description:<br><textarea id="description" name="description" style="width:100%" rows="3"></textarea></label><br><br>
-                <button type="submit">Save Annotation</button>
-                <button type="button" onclick="closeModal()">Cancel</button>
+                <!-- Two-column layout -->
+                <div style="display: flex; gap: 30px; margin-bottom: 25px;">
+                    <!-- Left Column: Context, Scene -->
+                    <div style="flex: 1; margin-right: 15px;">
+                        <label>Context: <span id="context-confidence" style="font-size: 11px; color: #007bff; font-weight: normal;"></span><br>
+                            <select id="context" name="context" style="width:100%; margin-bottom: 15px;" onchange="handleSelectChange('context')">
+                                <option value="">Select context...</option>
+                                <!-- Options will be populated dynamically -->
+                                <option value="add_new">Add New +</option>
+                            </select>
+                        </label>
+                        <div id="context_custom" style="display:none; margin-top:8px; margin-bottom: 15px;">
+                            <input type="text" id="context_input" placeholder="Enter new context..." style="width:100%; margin-bottom: 8px;">
+                            <button type="button" onclick="addCustomOption('context')" style="margin-right: 8px;">Add</button>
+                            <button type="button" onclick="cancelCustomOption('context')">Cancel</button>
+                        </div>
+                        
+                        <label>Scene: <span id="scene-confidence" style="font-size: 11px; color: #007bff; font-weight: normal;"></span><br><input type="text" id="scene" name="scene" style="width:100%; margin-bottom: 8px;" autocomplete="off"></label>
+                        <div id="scene-recent" style="margin-bottom: 20px;">
+                            <small style="color:#666;">Recent scenes:</small><br>
+                            <div id="scene-buttons" style="margin-top:5px;"></div>
+                        </div>
+                        
+                        <!-- Tags field hidden but kept for backend compatibility -->
+                        <input type="hidden" id="tags" name="tags" value="">
+                        <!-- <div id="tags-recent" style="display:none; margin-bottom: 15px;">
+                            <small style="color:#666;">Recent tags:</small><br>
+                            <div id="tags-buttons" style="margin-top:5px;"></div>
+                        </div> -->
+                    </div>
+                    
+                    <!-- Right Column: Action Classification -->
+                    <div style="flex: 1; margin-left: 15px;">
+                        <h3 style="margin: 0 0 20px 0; font-size: 14px;">Action Classification (Optional)</h3
+                        >
+                        <label>Action Type:<br>
+                            <select id="action_type" name="action_type" style="width:100%; margin-bottom: 15px;" onchange="handleSelectChange('action_type')">
+                                <option value="">Select action type...</option>
+                                <!-- Options will be populated dynamically -->
+                                <option value="add_new">Add New +</option>
+                            </select>
+                        </label>
+                        <div id="action_type_custom" style="display:none; margin-top:8px; margin-bottom: 15px;">
+                            <input type="text" id="action_type_input" placeholder="Enter new action type..." style="width:100%; margin-bottom: 8px;">
+                            <button type="button" onclick="addCustomOption('action_type')" style="margin-right: 8px;">Add</button>
+                            <button type="button" onclick="cancelCustomOption('action_type')">Cancel</button>
+                        </div>
+                        
+                        <label>Player Intent:<br>
+                            <select id="intent" name="intent" style="width:100%; margin-bottom: 15px;" onchange="handleSelectChange('intent')">
+                                <option value="">Select intent...</option>
+                                <!-- Options will be populated dynamically -->
+                                <option value="add_new">Add New +</option>
+                            </select>
+                        </label>
+                        <div id="intent_custom" style="display:none; margin-top:8px; margin-bottom: 15px;">
+                            <input type="text" id="intent_input" placeholder="Enter new intent..." style="width:100%; margin-bottom: 8px;">
+                            <button type="button" onclick="addCustomOption('intent')" style="margin-right: 8px;">Add</button>
+                            <button type="button" onclick="cancelCustomOption('intent')">Cancel</button>
+                        </div>
+                        
+                        <label>Outcome:<br>
+                            <select id="outcome" name="outcome" style="width:100%; margin-bottom: 15px;">
+                                <option value="">Select outcome...</option>
+                                <!-- Options will be populated dynamically -->
+                            </select>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Full-width Description row -->
+                <div style="margin: 25px 0;">
+                    <label>Description:<br><textarea id="description" name="description" style="width:100%; margin-top: 8px;" rows="3" autocomplete="off"></textarea></label>
+                </div>
+                
+                <div style="margin-top: 25px;">
+                    <button type="submit" style="margin-right: 10px;">Save Annotation</button>
+                    <button type="button" onclick="closeModal()" style="margin-right: 10px;">Cancel</button>
+                    <button type="button" onclick="clearCopiedAnnotation()" style="background:#dc3545;color:white;margin-left:10px;" title="Clear copied annotation data">Clear Copied</button>
+                    <button type="button" onclick="resetAnnotations()" style="background:#fd7e14;color:white;margin-left:10px;" title="Reset annotations for selected frames">Reset Annotations</button>
+                </div>
             </form>
         </div>
     </div>
@@ -78,14 +192,88 @@ let inputHistory = {
     context: [],
     scene: [],
     tags: [],
-    description: []
+    description: [],
+    action_type: [],
+    intent: [],
+    outcome: []
 };
 let currentHistoryIndex = {
     context: -1,
     scene: -1,
     tags: -1,
-    description: -1
+    description: -1,
+    action_type: -1,
+    intent: -1,
+    outcome: -1
 };
+
+// Copied annotation data
+let copiedAnnotation = null;
+
+// Annotation configuration
+let annotationConfig = null;
+
+// Load annotation configuration
+async function loadAnnotationConfig() {
+    try {
+        const response = await fetch('/static/annotation_config.json');
+        annotationConfig = await response.json();
+        populateDropdowns();
+    } catch (error) {
+        console.error('Error loading annotation config:', error);
+        // Fallback to empty config
+        annotationConfig = {
+            context_options: [],
+            action_type_options: [],
+            intent_options: [],
+            outcome_options: []
+        };
+    }
+}
+
+// Populate dropdown options from config
+function populateDropdowns() {
+    if (!annotationConfig) return;
+    
+    // Populate context dropdown
+    const contextSelect = document.getElementById('context');
+    const contextAddNew = contextSelect.querySelector('option[value="add_new"]');
+    annotationConfig.context_options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        contextSelect.insertBefore(optionElement, contextAddNew);
+    });
+    
+    // Populate action_type dropdown
+    const actionTypeSelect = document.getElementById('action_type');
+    const actionTypeAddNew = actionTypeSelect.querySelector('option[value="add_new"]');
+    annotationConfig.action_type_options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        actionTypeSelect.insertBefore(optionElement, actionTypeAddNew);
+    });
+    
+    // Populate intent dropdown
+    const intentSelect = document.getElementById('intent');
+    const intentAddNew = intentSelect.querySelector('option[value="add_new"]');
+    annotationConfig.intent_options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        intentSelect.insertBefore(optionElement, intentAddNew);
+    });
+    
+    // Populate outcome dropdown (no add new option)
+    const outcomeSelect = document.getElementById('outcome');
+    annotationConfig.outcome_options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        outcomeSelect.appendChild(optionElement);
+    });
+}
 
 // Load input history from localStorage
 function loadInputHistory() {
@@ -102,28 +290,96 @@ function saveInputHistory() {
 
 // Add value to input history
 function addToHistory(fieldName, value) {
-    if (value && value.trim()) {
-        // Remove existing occurrence if present
+    if (!value || !value.trim()) return;
+    
+    // Initialize the field array if it doesn't exist
+    if (!inputHistory[fieldName]) {
+        inputHistory[fieldName] = [];
+    }
+    
+    // Special handling for tags - split by comma and add each tag individually
+    if (fieldName === 'tags') {
+        const individualTags = value.split(',').map(tag => tag.trim()).filter(tag => tag);
+        
+        individualTags.forEach(tag => {
+            // Remove if already exists (to move to front)
+            const index = inputHistory[fieldName].indexOf(tag);
+            if (index > -1) {
+                inputHistory[fieldName].splice(index, 1);
+            }
+            
+            // Add to front
+            inputHistory[fieldName].unshift(tag);
+        });
+    } else {
+        // Normal handling for other fields
+        // Remove if already exists (to move to front)
         const index = inputHistory[fieldName].indexOf(value);
         if (index > -1) {
             inputHistory[fieldName].splice(index, 1);
         }
-        // Add to beginning of array
+        
+        // Add to front
         inputHistory[fieldName].unshift(value);
-        // Keep only last 20 entries
-        if (inputHistory[fieldName].length > 20) {
-            inputHistory[fieldName] = inputHistory[fieldName].slice(0, 20);
-        }
-        saveInputHistory();
     }
+    
+    // Keep only last 20 entries
+    if (inputHistory[fieldName].length > 20) {
+        inputHistory[fieldName] = inputHistory[fieldName].slice(0, 20);
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('annotationInputHistory', JSON.stringify(inputHistory));
+}
+
+// Update recent buttons for a field
+function updateRecentButtons(fieldName) {
+    const buttonsContainer = document.getElementById(fieldName + '-buttons');
+    if (!buttonsContainer) return;
+    
+    buttonsContainer.innerHTML = '';
+    const recentItems = inputHistory[fieldName] || [];
+    
+    recentItems.slice(0, 20).forEach(item => {
+        const button = document.createElement('button');
+        button.textContent = item;
+        button.className = 'recent-button';
+        button.type = 'button';
+        button.title = item; // Full text on hover
+        button.onclick = () => {
+            const field = document.getElementById(fieldName);
+            if (fieldName === 'tags') {
+                // For tags, append with comma if there's existing content
+                const currentValue = field.value.trim();
+                if (currentValue) {
+                    field.value = currentValue + ', ' + item;
+                } else {
+                    field.value = item;
+                }
+            } else {
+                // For other fields, replace the content
+                field.value = item;
+            }
+            field.focus();
+        };
+        buttonsContainer.appendChild(button);
+    });
 }
 
 // Handle arrow key navigation in form fields
 function setupFormFieldNavigation() {
-    const fields = ['context', 'scene', 'tags', 'description'];
+    const fields = ['scene', 'tags', 'description']; // Removed dropdown fields since they handle arrow keys natively
     
     fields.forEach(fieldName => {
         const field = document.getElementById(fieldName);
+        if (!field) return; // Skip if field doesn't exist
+        
+        // For select fields, we'll handle them differently
+        if (field.tagName === 'SELECT') {
+            // For dropdowns, we can still use arrow keys but won't interfere with native behavior
+            return;
+        }
+        
         field.addEventListener('keydown', function(e) {
             if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -154,6 +410,73 @@ function setupFormFieldNavigation() {
 
 // Initialize input history on page load
 loadInputHistory();
+
+// Initialize recent buttons on page load
+function initializeRecentButtons() {
+    updateRecentButtons('scene');
+    updateRecentButtons('tags');
+}
+
+// Handle select change for custom options
+function handleSelectChange(fieldName) {
+    const select = document.getElementById(fieldName);
+    const customDiv = document.getElementById(fieldName + '_custom');
+    
+    if (select.value === 'add_new') {
+        customDiv.style.display = 'block';
+        document.getElementById(fieldName + '_input').focus();
+    } else {
+        customDiv.style.display = 'none';
+    }
+}
+
+// Add custom option to select
+function addCustomOption(fieldName) {
+    const input = document.getElementById(fieldName + '_input');
+    const select = document.getElementById(fieldName);
+    const customDiv = document.getElementById(fieldName + '_custom');
+    const newValue = input.value.trim();
+    
+    if (newValue) {
+        // Check if option already exists
+        const existingOption = Array.from(select.options).find(option => 
+            option.value.toLowerCase() === newValue.toLowerCase()
+        );
+        
+        if (!existingOption) {
+            // Add new option before "Add New +"
+            const newOption = document.createElement('option');
+            newOption.value = newValue.toLowerCase().replace(/\s+/g, '_');
+            newOption.textContent = newValue;
+            
+            // Insert before "Add New +" option
+            const addNewOption = select.querySelector('option[value="add_new"]');
+            select.insertBefore(newOption, addNewOption);
+        }
+        
+        // Select the new/existing option
+        const targetValue = existingOption ? existingOption.value : newValue.toLowerCase().replace(/\s+/g, '_');
+        select.value = targetValue;
+        
+        // Hide custom input
+        customDiv.style.display = 'none';
+        input.value = '';
+        
+        // Add to input history
+        addToHistory(fieldName, newValue);
+    }
+}
+
+// Cancel custom option input
+function cancelCustomOption(fieldName) {
+    const select = document.getElementById(fieldName);
+    const customDiv = document.getElementById(fieldName + '_custom');
+    const input = document.getElementById(fieldName + '_input');
+    
+    select.value = '';
+    customDiv.style.display = 'none';
+    input.value = '';
+}
 
 // Completion tracking functions
 function updateCompletionStats() {
@@ -254,6 +577,13 @@ function changeSession() {
 
 function toggleFrame(frame, event) {
     const el = document.getElementById('frame-' + frame);
+    
+    // Handle Ctrl+Click on annotated frames to copy annotation
+    if (event && event.ctrlKey && el.classList.contains('annotated')) {
+        copyAnnotation(frame);
+        return; // Don't toggle selection when copying
+    }
+    
     if (event && event.shiftKey && lastSelectedFrame !== null && frameOrder.length > 0) {
         // Range selection
         const startIdx = frameOrder.indexOf(String(lastSelectedFrame));
@@ -349,7 +679,31 @@ function loadNextFrames() {
 
 // Popup for frame event.json data
 let popupDiv = null;
+let previewDiv = null;
+
 function showFrameDataPopup(frame, anchorEl) {
+    // Create and show the larger frame preview
+    if (!previewDiv) {
+        previewDiv = document.createElement('div');
+        previewDiv.style.position = 'fixed';
+        previewDiv.style.zIndex = 1999; // Below popup but above everything else
+        previewDiv.style.background = '#fff';
+        previewDiv.style.border = '2px solid #007bff';
+        previewDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+        previewDiv.style.padding = '10px';
+        previewDiv.style.borderRadius = '8px';
+        document.body.appendChild(previewDiv);
+    }
+    
+    // Show larger version of the frame
+    const rect = anchorEl.getBoundingClientRect();
+    previewDiv.innerHTML = `<img src="${apiUrl('frame_image', frame)}" style="max-width: 300px; max-height: 225px; display: block;">
+                           <div style="text-align: center; margin-top: 5px; font-weight: bold;">Frame ${frame}</div>`;
+    previewDiv.style.left = (rect.left + rect.width/2 - 150) + 'px'; // Center above frame
+    previewDiv.style.top = (rect.top - 250) + 'px'; // Position above frame
+    previewDiv.style.display = 'block';
+    
+    // Show data popup
     fetch(apiUrl('frame_event', frame))
         .then(res => res.ok ? res.json() : null)
         .then(data => {
@@ -362,7 +716,8 @@ function showFrameDataPopup(frame, anchorEl) {
                 popupDiv.style.border = '1px solid #888';
                 popupDiv.style.boxShadow = '0 2px 8px #0003';
                 popupDiv.style.padding = '10px';
-                popupDiv.style.maxWidth = '500px';
+                popupDiv.style.maxWidth = '256px';
+                popupDiv.style.minWidth = '128px';
                 popupDiv.style.fontSize = '12px';
                 document.body.appendChild(popupDiv);
             }
@@ -373,14 +728,6 @@ function showFrameDataPopup(frame, anchorEl) {
                 html += `<b>Frames:</b> ${data.frames_in_set.join(', ')}<br>`;
             }
             
-            // Display Program Counters
-            if (data.pcs) {
-                html += `<b>Program Counters:</b><br>`;
-                data.pcs.forEach((pc, index) => {
-                    html += `&nbsp;&nbsp;[${index}]: ${pc}<br>`;
-                });
-            }
-            
             // Display Buttons
             if (data.buttons) {
                 html += `<b>Buttons:</b><br>`;
@@ -388,23 +735,93 @@ function showFrameDataPopup(frame, anchorEl) {
                     const buttonText = Array.isArray(button) ? button.join('+') : (button === 'None' ? 'None' : button);
                     html += `&nbsp;&nbsp;[${index}]: ${buttonText}<br>`;
                 });
+            }else {
+                html += `<b>Buttons:</b> None<br>`;
             }
             
-            // Show raw JSON in collapsible section for debugging
-            html += `<br><details><summary>Raw JSON</summary><pre style="white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;">`;
-            html += JSON.stringify(data, null, 2);
-            html += '</pre></details>';
+            // Show annotation description if present, otherwise show raw JSON
+            if (data.annotations && data.annotations.description) {
+                html += `<br><b>Annotations:</b>
+                <br><b>Context:</b> ${data.annotations.context}
+                <br><b>Scene:</b> ${data.annotations.scene}
+                <br><b>Tags:</b> ${data.annotations.tags}
+                <br><b>Description:</b> ${data.annotations.description}`;
+                
+                // Show action data if present
+                if (data.annotations.action_type || data.annotations.intent || data.annotations.outcome) {
+                    html += `<br><br><b>Action:</b>`;
+                    if (data.annotations.action_type) html += `<br><b>Type:</b> ${data.annotations.action_type}`;
+                    if (data.annotations.intent) html += `<br><b>Intent:</b> ${data.annotations.intent}`;
+                    if (data.annotations.outcome) html += `<br><b>Outcome:</b> ${data.annotations.outcome}`;
+                }
+                
+                html += `<br><br><small style="color:#666;">Ctrl+Click to copy annotation</small>`;
+            } else {
+                // Show raw JSON in collapsible section for debugging
+                html += `<br><details><summary>Raw JSON</summary><pre style="white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;">`;
+                html += JSON.stringify(data, null, 2);
+                html += '</pre></details>';
+            }
             
             popupDiv.innerHTML = html;
-            // Position popup above anchorEl
+            // Position popup to the right of anchorEl
             const rect = anchorEl.getBoundingClientRect();
-            popupDiv.style.left = rect.left + 'px';
-            popupDiv.style.top = (rect.top - popupDiv.offsetHeight - 10) + 'px';
+            popupDiv.style.left = (rect.right + 10) + 'px';
+            popupDiv.style.top = rect.top + 'px';
             popupDiv.style.display = 'block';
         });
 }
+
 function hideFrameDataPopup() {
     if (popupDiv) popupDiv.style.display = 'none';
+    if (previewDiv) previewDiv.style.display = 'none';
+}
+
+// Copy annotation from a frame
+function copyAnnotation(frame) {
+    fetch(apiUrl('frame_event', frame))
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+            if (data && data.annotations) {
+                copiedAnnotation = {
+                    context: data.annotations.context || '',
+                    scene: data.annotations.scene || '',
+                    tags: data.annotations.tags || '',
+                    description: data.annotations.description || '',
+                    action_type: data.annotations.action_type || '',
+                    intent: data.annotations.intent || '',
+                    outcome: data.annotations.outcome || ''
+                };
+                
+                // Visual feedback - flash the frame briefly
+                const frameEl = document.getElementById('frame-' + frame);
+                if (frameEl) {
+                    const original = frameEl.style.background;
+                    frameEl.style.background = '#28a745';
+                    frameEl.style.color = 'white';
+                    setTimeout(() => {
+                        frameEl.style.background = original;
+                        frameEl.style.color = '';
+                    }, 300);
+                }
+                
+                // Update modal title to show copied data is available
+                updateModalTitle();
+            }
+        })
+        .catch(err => console.error('Error copying annotation:', err));
+}
+
+// Update modal title to show when copied data is available
+function updateModalTitle() {
+    const title = document.querySelector('#annotation-modal h2');
+    if (copiedAnnotation) {
+        title.textContent = 'Annotate Selected Frames (📋 Copied data available)';
+        title.style.color = '#28a745';
+    } else {
+        title.textContent = 'Annotate Selected Frames';
+        title.style.color = '';
+    }
 }
 
         window.addEventListener('scroll', function() {
@@ -419,6 +836,152 @@ function hideFrameDataPopup() {
         });
         function openModal() {
             document.getElementById('annotation-modal').style.display = 'block';
+            
+            // Get the first selected frame to check for existing annotations
+            const firstSelectedFrame = Array.from(selectedFrames)[0];
+            // Get the last selected frame for the snapshot display
+            const lastSelectedFrame = Array.from(selectedFrames).pop();
+            
+            // Update the frame snapshot
+            updateModalFrameSnapshot();
+            
+            if (firstSelectedFrame) {
+                // Check if the frame has existing annotations
+                fetch(apiUrl('frame_event', firstSelectedFrame))
+                    .then(res => res.ok ? res.json() : null)
+                    .then(data => {
+                        if (data && data.annotations && (data.annotations.context || data.annotations.scene || data.annotations.tags || data.annotations.description)) {
+                            // Frame has existing annotations - use them
+                            document.getElementById('context').value = data.annotations.context || '';
+                            document.getElementById('scene').value = data.annotations.scene || '';
+                            document.getElementById('tags').value = ''; // Always empty now
+                            document.getElementById('description').value = data.annotations.description || '';
+                            document.getElementById('action_type').value = data.annotations.action_type || '';
+                            document.getElementById('intent').value = data.annotations.intent || '';
+                            document.getElementById('outcome').value = data.annotations.outcome || '';
+                            // Clear CNN confidence indicators
+                            document.getElementById('context-confidence').textContent = '';
+                            document.getElementById('scene-confidence').textContent = '';
+                        } else if (copiedAnnotation) {
+                            // Frame has no annotations but we have copied data - use copied data
+                            document.getElementById('context').value = copiedAnnotation.context;
+                            document.getElementById('scene').value = copiedAnnotation.scene;
+                            document.getElementById('tags').value = ''; // Always empty now
+                            document.getElementById('description').value = copiedAnnotation.description;
+                            document.getElementById('action_type').value = copiedAnnotation.action_type;
+                            document.getElementById('intent').value = copiedAnnotation.intent;
+                            document.getElementById('outcome').value = copiedAnnotation.outcome;
+                            // Clear CNN confidence indicators
+                            document.getElementById('context-confidence').textContent = '';
+                            document.getElementById('scene-confidence').textContent = '';
+                        } else {
+                            // Frame has no annotations and no copied data - check CNN predictions first
+                            let usedCnnPredictions = false;
+                            
+                            // Clear confidence indicators first
+                            document.getElementById('context-confidence').textContent = '';
+                            document.getElementById('scene-confidence').textContent = '';
+                            
+                            if (data && data.cnn_predictions) {
+                                const cnnContext = data.cnn_predictions.context;
+                                const cnnScene = data.cnn_predictions.scene;
+                                
+                                // Check if we have high-confidence predictions for both context and scene
+                                const hasHighConfidenceContext = cnnContext && cnnContext.confidence > 0.5;
+                                const hasHighConfidenceScene = cnnScene && cnnScene.confidence > 0.5;
+                                
+                                if (hasHighConfidenceContext || hasHighConfidenceScene) {
+                                    // Use CNN predictions when available with high confidence
+                                    if (hasHighConfidenceContext) {
+                                        document.getElementById('context').value = cnnContext.prediction;
+                                        document.getElementById('context-confidence').textContent = `(CNN: ${(cnnContext.confidence * 100).toFixed(1)}%)`;
+                                    }
+                                    if (hasHighConfidenceScene) {
+                                        document.getElementById('scene').value = cnnScene.prediction;
+                                        document.getElementById('scene-confidence').textContent = `(CNN: ${(cnnScene.confidence * 100).toFixed(1)}%)`;
+                                    }
+                                    
+                                    // Clear description when using CNN predictions
+                                    document.getElementById('description').value = '';
+                                    usedCnnPredictions = true;
+                                }
+                            }
+                            
+                            // Only use last annotations if we didn't use CNN predictions
+                            if (!usedCnnPredictions) {
+                                const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
+                                const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
+                                const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
+                                
+                                document.getElementById('context').value = lastContext;
+                                document.getElementById('scene').value = lastScene;
+                                document.getElementById('description').value = lastDescription;
+                            }
+                            
+                            document.getElementById('tags').value = ''; // Always empty now
+                            // Leave action fields empty
+                            document.getElementById('action_type').value = '';
+                            document.getElementById('intent').value = '';
+                            document.getElementById('outcome').value = '';
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error checking frame annotations:', err);
+                        // Fallback to copied annotation or last annotations if API call fails
+                        if (copiedAnnotation) {
+                            document.getElementById('context').value = copiedAnnotation.context;
+                            document.getElementById('scene').value = copiedAnnotation.scene;
+                            document.getElementById('tags').value = ''; // Always empty now
+                            document.getElementById('description').value = copiedAnnotation.description;
+                            document.getElementById('action_type').value = copiedAnnotation.action_type;
+                            document.getElementById('intent').value = copiedAnnotation.intent;
+                            document.getElementById('outcome').value = copiedAnnotation.outcome;
+                        } else {
+                            // Use last annotations (excluding actions)
+                            const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
+                            const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
+                            const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
+                            
+                            document.getElementById('context').value = lastContext;
+                            document.getElementById('scene').value = lastScene;
+                            document.getElementById('tags').value = ''; // Always empty now
+                            document.getElementById('description').value = lastDescription;
+                            // Leave action fields empty
+                            document.getElementById('action_type').value = '';
+                            document.getElementById('intent').value = '';
+                            document.getElementById('outcome').value = '';
+                        }
+                    });
+            } else {
+                // No frames selected - use copied annotation or last annotations
+                if (copiedAnnotation) {
+                    document.getElementById('context').value = copiedAnnotation.context;
+                    document.getElementById('scene').value = copiedAnnotation.scene;
+                    document.getElementById('tags').value = ''; // Always empty now
+                    document.getElementById('description').value = copiedAnnotation.description;
+                    document.getElementById('action_type').value = copiedAnnotation.action_type;
+                    document.getElementById('intent').value = copiedAnnotation.intent;
+                    document.getElementById('outcome').value = copiedAnnotation.outcome;
+                } else {
+                    // Use last annotations (excluding actions)
+                    const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
+                    const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
+                    const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
+                    
+                    document.getElementById('context').value = lastContext;
+                    document.getElementById('scene').value = lastScene;
+                    document.getElementById('tags').value = ''; // Always empty now
+                    document.getElementById('description').value = lastDescription;
+                    // Leave action fields empty
+                    document.getElementById('action_type').value = '';
+                    document.getElementById('intent').value = '';
+                    document.getElementById('outcome').value = '';
+                }
+            }
+            
+            // Populate recent buttons - remove tags
+            updateRecentButtons('scene');
+            
             document.getElementById('scene').focus();
             
             // Reset history indices
@@ -428,10 +991,86 @@ function hideFrameDataPopup() {
             
             // Set up form field navigation if not already done
             setupFormFieldNavigation();
+            
+            // Update modal title
+            updateModalTitle();
         }
+        // Function to update the frame snapshot in the modal
+function updateModalFrameSnapshot() {
+    const selectedFramesArray = Array.from(selectedFrames);
+    if (selectedFramesArray.length === 0) {
+        // Hide snapshot if no frames selected
+        document.getElementById('modal-frame-snapshot').style.display = 'none';
+        return;
+    }
+    
+    // Show the last selected frame (most recently selected)
+    const lastSelectedFrame = selectedFramesArray[selectedFramesArray.length - 1];
+    const snapshotImage = document.getElementById('snapshot-image');
+    const snapshotLabel = document.getElementById('snapshot-frame-label');
+    const buttonEventsDisplay = document.getElementById('button-events-display');
+    
+    // Update the image source
+    snapshotImage.src = apiUrl('frame_image', lastSelectedFrame);
+    
+    // Update the label
+    if (selectedFramesArray.length === 1) {
+        snapshotLabel.textContent = `Frame ${lastSelectedFrame}`;
+    } else {
+        snapshotLabel.textContent = `Frame ${lastSelectedFrame} (${selectedFramesArray.length} frames selected)`;
+    }
+    
+    // Load and display button events
+    buttonEventsDisplay.textContent = 'Loading button events...';
+    fetch(apiUrl('frame_event', lastSelectedFrame))
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+            if (data && data.buttons) {
+                let buttonHtml = '';
+                data.buttons.forEach((button, index) => {
+                    const buttonText = Array.isArray(button) ? button.join('+') : (button === 'None' ? 'None' : button);
+                    buttonHtml += `[${index}]: ${buttonText}<br>`;
+                });
+                buttonEventsDisplay.innerHTML = buttonHtml || 'No button events recorded';
+            } else {
+                buttonEventsDisplay.textContent = 'No button data available';
+            }
+        })
+        .catch(err => {
+            console.error('Error loading button events:', err);
+            buttonEventsDisplay.textContent = 'Error loading button events';
+        });
+    
+    // Show the snapshot
+    document.getElementById('modal-frame-snapshot').style.display = 'flex';
+}
         function closeModal() {
             document.getElementById('annotation-modal').style.display = 'none';
             document.getElementById('annotation-form').reset();
+            
+            // Hide any custom input areas
+            document.getElementById('context_custom').style.display = 'none';
+            document.getElementById('action_type_custom').style.display = 'none';
+            document.getElementById('intent_custom').style.display = 'none';
+            
+            // Clear custom input fields
+            document.getElementById('context_input').value = '';
+            document.getElementById('action_type_input').value = '';
+            document.getElementById('intent_input').value = '';
+        }
+        
+        // Clear copied annotation data
+        function clearCopiedAnnotation() {
+            copiedAnnotation = null;
+            updateModalTitle();
+            // Clear the form fields
+            document.getElementById('context').value = '';
+            document.getElementById('scene').value = '';
+            document.getElementById('tags').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('action_type').value = '';
+            document.getElementById('intent').value = '';
+            document.getElementById('outcome').value = '';
         }
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
@@ -443,23 +1082,51 @@ function hideFrameDataPopup() {
         });
         document.getElementById('annotation-form').onsubmit = function(e) {
             e.preventDefault();
+            
+            // Check if frames are selected
+            const framesToUpdate = Array.from(selectedFrames);
+            if (framesToUpdate.length === 0) {
+                alert('Please select at least one frame to annotate.');
+                return;
+            }
+            
             const context = document.getElementById('context').value;
             const scene = document.getElementById('scene').value;
             const tags = document.getElementById('tags').value;
             const description = document.getElementById('description').value;
-            const framesToUpdate = Array.from(selectedFrames);
+            const action_type = document.getElementById('action_type').value;
+            const intent = document.getElementById('intent').value;
+            const outcome = document.getElementById('outcome').value;
             
             // Add values to input history
             addToHistory('context', context);
             addToHistory('scene', scene);
             addToHistory('tags', tags);
             addToHistory('description', description);
+            if (action_type && action_type.trim()) addToHistory('action_type', action_type);
+            if (intent && intent.trim()) addToHistory('intent', intent);
+            if (outcome && outcome.trim()) addToHistory('outcome', outcome);
+            
+            // Build annotation object - include all fields
+            const annotation = { 
+                context, 
+                scene, 
+                tags, 
+                description,
+                action_type: action_type || '',
+                intent: intent || '',
+                outcome: outcome || ''
+            };
+            
+            console.log('Submitting annotation:', annotation);
+            console.log('For frames:', framesToUpdate);
             
             fetch(apiUrl('annotate'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ frames: framesToUpdate, annotation: { context, scene, tags, description } })
+                body: JSON.stringify({ frames: framesToUpdate, annotation })
             }).then(res => res.json()).then(data => {
+                console.log('Server response:', data);
                 if (data.error) {
                     alert('Error: ' + data.error);
                     return;
@@ -467,7 +1134,10 @@ function hideFrameDataPopup() {
                 // Only update the annotated frames' borders
                 framesToUpdate.forEach(frame => {
                     const div = document.getElementById('frame-' + frame);
-                    if (div) div.classList.add('annotated');
+                    if (div) {
+                        div.classList.add('annotated');
+                        div.classList.remove('selected'); // Remove selection styling
+                    }
                 });
                 selectedFrames.clear();
                 closeModal();
@@ -476,13 +1146,75 @@ function hideFrameDataPopup() {
                 updateCompletionStats();
             }).catch(err => {
                 console.error('Error saving annotation:', err);
-                alert('Error saving annotation');
+                alert('Error saving annotation: ' + err.message);
             });
         };
 
+        // Reset annotations for selected frames
+        function resetAnnotations() {
+            const framesToReset = Array.from(selectedFrames);
+            if (framesToReset.length === 0) {
+                alert('Please select at least one frame to reset annotations for.');
+                return;
+            }
+            
+            const confirmReset = confirm(`Are you sure you want to reset annotations for ${framesToReset.length} frame(s)? This will clear all annotation data for the selected frames.`);
+            if (!confirmReset) {
+                return;
+            }
+            
+            // Create empty annotation object
+            const emptyAnnotation = {
+                context: '',
+                scene: '',
+                tags: '',
+                description: '',
+                action_type: '',
+                intent: '',
+                outcome: ''
+            };
+            
+            console.log('Resetting annotations for frames:', framesToReset);
+            
+            fetch(apiUrl('annotate'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ frames: framesToReset, annotation: emptyAnnotation })
+            }).then(res => res.json()).then(data => {
+                console.log('Reset response:', data);
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                // Remove annotated styling from the frames
+                framesToReset.forEach(frame => {
+                    const div = document.getElementById('frame-' + frame);
+                    if (div) {
+                        div.classList.remove('annotated');
+                        div.classList.remove('selected'); // Remove selection styling
+                    }
+                });
+                
+                selectedFrames.clear();
+                closeModal();
+                
+                // Update completion stats after resetting annotations
+                updateCompletionStats();
+                
+                alert(`Annotations reset for ${framesToReset.length} frame(s).`);
+                
+            }).catch(err => {
+                console.error('Error resetting annotations:', err);
+                alert('Error resetting annotations: ' + err.message);
+            });
+        }
+
         // Initialize the page
-        window.onload = function() {
+        window.onload = async function() {
             currentSessionId = getCurrentSessionId();
+            await loadAnnotationConfig(); // Load config before other operations
+            initializeRecentButtons(); // Initialize recent buttons
             refreshSessions();
             if (currentSessionId) {
                 loadFrames();

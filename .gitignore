@@ -24,6 +24,9 @@ build/
 # Environment files
 data/
 venv/
+logs/
+training_data/
+*.env
 
 # Game data and logs
 *.csv

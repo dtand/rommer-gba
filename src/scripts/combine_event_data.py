@@ -55,7 +55,7 @@ with open(csv_path, newline='', encoding='utf-8') as csvfile:
     for row in reader:
         if len(row) != 12:  # Updated to expect 12 columns (added frame_set_id and chunk_id)
             continue  # skip malformed lines
-        (timestamp, region, frame, addr, prev_val, curr_val, freq, pc, keys_str, current_keys, frame_set_id, chunk_id) = row
+        (timestamp, region, frame, addr, prev_val, curr_val, freq, pc, keys_str, current_key, frame_set_id, chunk_id) = row
         
         frame_set_id = int(frame_set_id)
         frame = int(frame)
@@ -65,29 +65,15 @@ with open(csv_path, newline='', encoding='utf-8') as csvfile:
             frame_set_frames[frame_set_id] = set()
         frame_set_frames[frame_set_id].add(frame)
         
-        # Parse key history and current_keys, mapping to console buttons
-        def map_keys_to_buttons(key_str):
-            if key_str == 'None':
-                return []
-            result = []
-            for combo in key_str.split('|'):
-                combo = combo.strip()
-                if not combo:
-                    continue
-                # Handle combos like keyA+keyB
-                mapped = []
-                for key in combo.split('+'):
-                    key = key.strip().lower()
-                    btn = key_map_rev.get(key)
-                    if btn:
-                        mapped.append(btn)
-                    else:
-                        mapped.append(key)  # fallback to original if not found
-                result.append('+'.join(mapped))
-            return result
+        # Parse current_key, mapping to console button
+        def map_key_to_button(key_str):
+            if key_str == 'None' or not key_str.strip():
+                return 'None'
+            key = key_str.strip().lower()
+            btn = key_map_rev.get(key)
+            return btn if btn else key  # fallback to original if not found
 
-        keys_list = map_keys_to_buttons(keys_str)
-        mapped_current_keys = map_keys_to_buttons(current_keys)
+        mapped_current_key = map_key_to_button(current_key)
         # Build JSON object
         data = {
             "timestamp": int(timestamp),
@@ -99,10 +85,10 @@ with open(csv_path, newline='', encoding='utf-8') as csvfile:
             "curr_val": curr_val,
             "freq": int(freq),
             "pc": pc,
-            "current_keys": mapped_current_keys
+            "current_key": mapped_current_key
         }
         frame_pcs[frame] = pc
-        frame_keys[frame] = mapped_current_keys 
+        frame_keys[frame] = mapped_current_key 
         if frame_set_id not in frame_set_events:
             frame_set_events[frame_set_id] = []
         frame_set_events[frame_set_id].append(data)
@@ -127,13 +113,11 @@ for frame_set_id, events in frame_set_events.items():
         first_final = events[-1]
     
     frames_in_set = sorted(list(frame_set_frames[frame_set_id]))
-    pcs = [frame_pcs.get(f, None) for f in frames_in_set]
-    current_keys = [frame_keys.get(f, []) for f in frames_in_set]
+    current_key_values = [frame_keys.get(f, 'None') for f in frames_in_set]
 
     top_level = {
         "timestamp": first_final["timestamp"],
-        "program_counters": pcs,
-        "buttons": current_keys,
+        "buttons": current_key_values,
         "frame_set_id": frame_set_id,
         "frames_in_set": frames_in_set,
         "memory_changes": []

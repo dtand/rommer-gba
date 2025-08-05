@@ -1,8 +1,86 @@
+# GBA Memory Tracing, Analysis & ML Training Project Requirements
+# Install with: pip install -r requirements.txt
+
+# ================================================================
+# CORE PROJECT DEPENDENCIES
+# ================================================================
+
+# BizHawk interaction and system control
 keyboard>=0.13.5
 pygetwindow>=0.0.9
 pywin32>=306
-argparse>=1.4.0
 pyautogui>=0.9.53
+
+# Data processing and analysis
 intervaltree>=3.1.0
+argparse>=1.4.0
+
+# Web interface
 flask>=2.0.1
-# Standard libraries (socket, json, os, time, sys) do not need
+
+# ================================================================
+# MACHINE LEARNING DEPENDENCIES
+# ================================================================
+
+# Core ML libraries (install PyTorch first with CUDA support)
+# Run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Transformers and training frameworks
+transformers>=4.36.0
+datasets>=2.14.0
+accelerate>=0.24.0
+peft>=0.7.0
+trl>=0.7.0
+
+# Quantization and optimization
+bitsandbytes>=0.41.0
+scipy>=1.10.0
+
+# Model evaluation and utilities
+evaluate>=0.4.0
+scikit-learn>=1.3.0
+
+# Tokenization and model utilities
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+tokenizers>=0.15.0
+
+# CNN training dependencies
+pillow>=8.0.0
+numpy>=1.21.0
+matplotlib>=3.5.0
+
+# Additional utilities for data processing
+pandas>=1.3.0
+tqdm>=4.62.0
+
+# Optional dependencies (uncomment if needed)
+# wandb>=0.16.0              # Weights & Biases for experiment tracking
+# tensorboard>=2.15.0        # TensorBoard for logging
+# huggingface_hub[hf_xet]    # Faster Hugging Face downloads
+
+# ================================================================
+# INSTALLATION NOTES
+# ================================================================
+#
+# 1. Install PyTorch with CUDA support first:
+#    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# 2. Install other dependencies:
+#    pip install -r requirements.txt
+#
+# 3. For Hugging Face model access:
+#    pip install huggingface_hub
+#    huggingface-cli login
+#
+# 4. Hardware Requirements:
+#    - Minimum: GTX 1060 6GB (inference only)
+#    - Recommended: RTX 2070 Super 8GB+ (training)
+#    - System RAM: 16GB+ recommended for training
+#
+# ================================================================
+
+# Note: Standard libraries (socket, json, os, time, sys) are included with Python
