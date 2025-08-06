@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate JSONL training files from the SQLite database with configurable inputs and outputs.
+Generate JSONL training files from the SQLite database using the standard messages format.
 This script queries the training data and creates formatted training samples for LLM fine-tuning.
 """
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class TrainingDataGenerator:
-    """Generates JSONL training files from the SQLite database."""
+    """Generates JSONL training files from the SQLite database using messages format."""
     
     def __init__(self, db_path: str):
         """Initialize with database path."""
@@ -149,48 +149,112 @@ class TrainingDataGenerator:
             filtered_changes.append(filtered_change)
         return filtered_changes
         
+    def build_user_message(self, record: Dict[str, Any], 
+                          input_fields: List[str],
+                          memory_change_fields: List[str]) -> str:
+        """
+        Build the user message from input fields.
+        
+        Args:
+            record: Raw training record from database
+            input_fields: List of fields to include in the user message
+            memory_change_fields: List of fields to include in memory changes
+            
+        Returns:
+            Formatted user message string
+        """
+        message_parts = []
+        
+        # Add memory changes if requested
+        if 'memory_changes' in input_fields:
+            filtered_changes = self.filter_memory_changes(
+                record.get('memory_changes', []), 
+                memory_change_fields
+            )
+            if filtered_changes:
+                memory_json = json.dumps(filtered_changes)
+                message_parts.append(f"Analyze these GBA memory changes: {memory_json}")
+        
+        # Add buttons if requested
+        if 'buttons' in input_fields:
+            buttons = record.get('buttons', [])
+            if buttons:
+                buttons_str = ", ".join(buttons)
+                message_parts.append(f"Button inputs: {buttons_str}")
+            else:
+                message_parts.append("Button inputs: None")
+        
+        # Add frame range if requested
+        if 'frame_range' in input_fields:
+            frame_range = record.get('frame_range', 0)
+            message_parts.append(f"Frame range: {frame_range}")
+        
+        # Add any other input fields as context
+        other_fields = [f for f in input_fields if f not in ['memory_changes', 'buttons', 'frame_range']]
+        for field in other_fields:
+            if field in record and record[field]:
+                message_parts.append(f"{field.replace('_', ' ').title()}: {record[field]}")
+        
+        # Default prompt if no specific inputs
+        if not message_parts:
+            message_parts.append("Analyze this GBA game state.")
+        
+        return "\n".join(message_parts)
+        
+    def build_assistant_message(self, record: Dict[str, Any], 
+                               output_fields: List[str]) -> str:
+        """
+        Build the assistant message from output fields.
+        
+        Args:
+            record: Raw training record from database
+            output_fields: List of fields to include in the assistant response
+            
+        Returns:
+            Formatted assistant message string
+        """
+        response_parts = []
+        
+        # Handle different output field combinations
+        if len(output_fields) == 1:
+            # Single field - just return the value
+            field = output_fields[0]
+            value = record.get(field, 'Unknown')
+            return str(value) if value else 'No information available'
+        
+        # Multiple fields - format as structured response
+        for field in output_fields:
+            value = record.get(field)
+            if value:  # Only include non-empty values
+                field_name = field.replace('_', ' ').title()
+                response_parts.append(f"{field_name}: {value}")
+        
+        return "\n".join(response_parts) if response_parts else "No information available"
+        
     def build_training_sample(self, record: Dict[str, Any], 
                             input_fields: List[str],
                             output_fields: List[str],
                             memory_change_fields: List[str]) -> Dict[str, Any]:
         """
-        Build a training sample with specified inputs and outputs.
+        Build a training sample in messages format.
         
         Args:
             record: Raw training record from database
-            input_fields: List of fields to include in inputs
-            output_fields: List of fields to include in outputs
+            input_fields: List of fields to include in user message
+            output_fields: List of fields to include in assistant message
             memory_change_fields: List of fields to include in memory changes
             
         Returns:
-            Formatted training sample
+            Training sample in messages format
         """
-        # Build inputs
-        inputs = {}
+        user_message = self.build_user_message(record, input_fields, memory_change_fields)
+        assistant_message = self.build_assistant_message(record, output_fields)
         
-        for field in input_fields:
-            if field == 'buttons':
-                inputs['buttons'] = record.get('buttons', [])
-            elif field == 'frame_range':
-                inputs['frame_range'] = record.get('frame_range', 0)
-            elif field == 'memory_changes':
-                filtered_changes = self.filter_memory_changes(
-                    record.get('memory_changes', []), 
-                    memory_change_fields
-                )
-                inputs['memory_changes'] = filtered_changes
-            elif field in record:
-                inputs[field] = record[field]
-                
-        # Build outputs
-        outputs = {}
-        for field in output_fields:
-            if field in record:
-                outputs[field] = record[field]
-                
         return {
-            'inputs': inputs,
-            'outputs': outputs
+            "messages": [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": assistant_message}
+            ]
         }
         
     def generate_jsonl_file(self, session_uuid: Optional[str],
@@ -199,22 +263,27 @@ class TrainingDataGenerator:
                           output_fields: List[str],
                           memory_change_fields: List[str]) -> int:
         """
-        Generate JSONL training file.
+        Generate JSONL training file in messages format.
         
         Args:
             session_uuid: Optional session UUID filter
             output_file: Output JSONL file path
-            input_fields: Fields to include in inputs
-            output_fields: Fields to include in outputs
+            input_fields: Fields to include in user messages
+            output_fields: Fields to include in assistant messages
             memory_change_fields: Fields to include in memory changes
             
         Returns:
             Number of samples generated
         """
         logger.info(f"Generating training file: {output_file}")
-        logger.info(f"Input fields: {input_fields}")
-        logger.info(f"Output fields: {output_fields}")
+        logger.info(f"Using messages format")
+        logger.info(f"User message fields: {input_fields}")
+        logger.info(f"Assistant message fields: {output_fields}")
         logger.info(f"Memory change fields: {memory_change_fields}")
+        
+        # Ensure output directory exists
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Get training data
         records = self.get_training_data(session_uuid)
@@ -256,9 +325,8 @@ class TrainingDataGenerator:
         
         # Annotation/frame set fields
         annotation_fields = [
-            'session_uuid', 'frame_set_id', 'context', 'scene', 'tags', 
-            'description', 'action_type', 'intent', 'outcome', 'timestamp',
-            'buttons', 'frames_in_set', 'frame_range'
+            'buttons', 'frame_range', 'memory_changes', 'context', 'scene', 'tags', 
+            'description', 'action_type', 'intent', 'outcome', 'timestamp'
         ]
         
         # Memory change fields
@@ -267,7 +335,8 @@ class TrainingDataGenerator:
             memory_change_fields = list(sample_record['memory_changes'][0].keys())
             
         return {
-            'annotation_fields': annotation_fields,
+            'input_fields': annotation_fields,
+            'output_fields': ['context', 'scene', 'description', 'action_type', 'intent', 'outcome'],
             'memory_change_fields': memory_change_fields
         }
 
@@ -275,18 +344,25 @@ class TrainingDataGenerator:
 def main():
     """Main function to handle command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Generate JSONL training files from GBA training database",
+        description="Generate JSONL training files from GBA training database (messages format)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate with default settings
+  # Generate with default settings (memory changes + buttons -> full analysis)
   python generate_training_jsonl.py abc123-uuid
 
-  # Custom inputs and outputs
+  # Memory changes only -> description only
   python generate_training_jsonl.py abc123-uuid \\
-    --inputs buttons frame_range memory_changes context \\
-    --outputs description action_type \\
-    --memory-fields address prev_val curr_val
+    --inputs memory_changes \\
+    --outputs description \\
+    --output training_data/memory_to_description.jsonl
+
+  # EWRAM only -> description only (filter by memory fields)
+  python generate_training_jsonl.py abc123-uuid \\
+    --inputs memory_changes \\
+    --outputs description \\
+    --memory-fields address prev_val curr_val region \\
+    --output training_data/ewram_to_description.jsonl
 
   # List available fields
   python generate_training_jsonl.py abc123-uuid --list-fields
@@ -296,16 +372,16 @@ Examples:
     parser.add_argument("session_uuid", help="Session UUID to process")
     parser.add_argument("--db-path", default="gba_training.db", 
                        help="SQLite database path (default: gba_training.db)")
-    parser.add_argument("--output", "-o", default="training_data.jsonl",
-                       help="Output JSONL file path (default: training_data.jsonl)")
+    parser.add_argument("--output", "-o", default="training_data/training_data.jsonl",
+                       help="Output JSONL file path (default: training_data/training_data.jsonl)")
     
     # Input/output configuration
     parser.add_argument("--inputs", nargs='+', 
-                       default=['buttons', 'frame_range', 'memory_changes'],
-                       help="Input fields to include (default: buttons frame_range memory_changes)")
+                       default=['memory_changes', 'buttons'],
+                       help="Input fields for user messages (default: memory_changes buttons)")
     parser.add_argument("--outputs", nargs='+',
-                       default=['context', 'scene', 'description', 'action_type', 'intent', 'outcome'],
-                       help="Output fields to include (default: context scene description action_type intent outcome)")
+                       default=['description'],
+                       help="Output fields for assistant messages (default: description)")
     parser.add_argument("--memory-fields", nargs='+',
                        default=['address', 'prev_val', 'curr_val'],
                        help="Memory change fields to include (default: address prev_val curr_val)")
@@ -331,8 +407,14 @@ Examples:
         if args.list_fields:
             fields = generator.get_available_fields(args.session_uuid)
             print("\n=== AVAILABLE FIELDS ===")
-            print(f"Annotation/Frame fields: {', '.join(fields['annotation_fields'])}")
+            print(f"Input fields: {', '.join(fields['input_fields'])}")
+            print(f"Output fields: {', '.join(fields['output_fields'])}")
             print(f"Memory change fields: {', '.join(fields['memory_change_fields'])}")
+            print("\n=== EXAMPLE USAGE ===")
+            print("Memory changes -> Description only:")
+            print(f"  python {sys.argv[0]} {args.session_uuid} --inputs memory_changes --outputs description")
+            print("\nFull analysis:")
+            print(f"  python {sys.argv[0]} {args.session_uuid} --inputs memory_changes buttons --outputs context scene description action_type")
             return
             
         # Validate that session exists
@@ -354,10 +436,21 @@ Examples:
         print(f"\n=== GENERATION SUMMARY ===")
         print(f"Session UUID: {args.session_uuid}")
         print(f"Output file: {args.output}")
+        print(f"Format: messages (user/assistant)")
         print(f"Samples generated: {samples_count}")
-        print(f"Input fields: {', '.join(args.inputs)}")
-        print(f"Output fields: {', '.join(args.outputs)}")
+        print(f"User message fields: {', '.join(args.inputs)}")
+        print(f"Assistant message fields: {', '.join(args.outputs)}")
         print(f"Memory change fields: {', '.join(args.memory_fields)}")
+        
+        # Show sample output
+        if samples_count > 0:
+            print(f"\n=== SAMPLE OUTPUT ===")
+            with open(args.output, 'r') as f:
+                sample = json.loads(f.readline())
+                print("User message preview:")
+                print(f"  {sample['messages'][0]['content'][:100]}...")
+                print("Assistant message preview:")
+                print(f"  {sample['messages'][1]['content'][:100]}...")
         
     except Exception as e:
         logger.error(f"Error during generation: {e}")

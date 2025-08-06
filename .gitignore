@@ -26,6 +26,7 @@ data/
 venv/
 logs/
 training_data/
+generated_scripts/
 *.env
 
 # Game data and logs

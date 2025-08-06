@@ -1,0 +1,17 @@
+{
+  "name": "EWRAM Description Only",
+  "description": "Train on EWRAM memory changes only, output description field only",
+  "memory_regions": [
+    "EWRAM"
+  ],
+  "output_fields": [
+    "description"
+  ],
+  "include_buttons": false,
+  "include_frame_info": false,
+  "include_region_in_output": true,
+  "max_memory_changes": 100,
+  "simple_output": true,
+  "simple_prompt": true,
+  "question": "What is happening in this EWRAM memory change?"
+}

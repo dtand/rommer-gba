@@ -1,0 +1,15 @@
+{
+  "name": "All Regions Description",
+  "description": "Train on all memory regions, output description only",
+  "memory_regions": [],
+  "output_fields": [
+    "description"
+  ],
+  "include_buttons": true,
+  "include_frame_info": false,
+  "include_region_in_output": true,
+  "max_memory_changes": 15,
+  "simple_output": true,
+  "simple_prompt": false,
+  "question": "What is happening in this GBA memory change?"
+}

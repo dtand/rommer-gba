@@ -4,9 +4,47 @@
     <meta charset="UTF-8">
     <title>Frame Grid Annotator</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .session-info { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        body { font-family: Arial, sans-serif; margin: 20px; padding-top: 120px; }
+        .session-info { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.3s ease;
+        }
+        .session-info.scrolled {
+            background: #e9ecef;
+            border-bottom: 2px solid #007bff;
+        }
         .session-selector { margin-bottom: 20px; }
+        .session-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-left: 10px;
+        }
+        .annotate-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .annotate-button:hover {
+            background: #218838;
+        }
+        .annotate-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
         .frame-grid-container { margin: 0 40px; }
         .frame-grid { display: flex; flex-wrap: wrap; gap: 10px; }
         .frame-item { border: 1px solid #ccc; padding: 5px; text-align: center; }
@@ -38,16 +76,36 @@
     </style>
 </head>
 <body>
-    <h1>Frame Grid Annotator</h1>
+    <h1 style="margin-bottom: 20px;">Frame Grid Annotator</h1>
     
     <div class="session-info" id="session-info">
         <div class="session-selector">
-            <label>Select Session: 
-                <select id="session-select" onchange="changeSession()">
-                    <option value="">Loading sessions...</option>
-                </select>
-            </label>
-            <button onclick="refreshSessions()">Refresh Sessions</button>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <label>Select Session: 
+                        <select id="session-select" onchange="changeSession()">
+                            <option value="">Loading sessions...</option>
+                        </select>
+                    </label>
+                    <div class="session-buttons">
+                        <button onclick="refreshSessions()">Refresh Sessions</button>
+                        <button class="annotate-button" id="bulk-annotate-btn" onclick="openBulkAnnotateModal()" disabled title="Select frames to enable bulk annotation">
+                            📝 Annotate Selected
+                        </button>
+                        <button class="annotate-button" onclick="injectToDatabase()" title="Inject selected frames to database">
+                            💾 Inject to Database
+                        </button>
+                        <button class="annotate-button" onclick="toggleAnnotatedFrames()" title="Hide/show annotated frames">
+                            👁️ Hide Annotated Frames
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <a href="/memory/" style="padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">
+                        🧠 Memory Analysis
+                    </a>
+                </div>
+            </div>
         </div>
         <div id="current-session-info" style="display:none;">
             <strong>Current Session:</strong> <span id="current-session-id"></span><br>
@@ -72,7 +130,12 @@
     <!-- Modal for annotation input -->
     <div id="annotation-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:1000;">
         <div style="background:#fff; max-width:800px; margin:3vh auto; padding:30px; border-radius:8px; box-shadow:0 2px 8px #0003;">
-            <h2>Annotate Selected Frames</h2>
+            <h2 id="modal-title">Annotate Selected Frames</h2>
+            
+            <!-- Bulk annotation mode notice -->
+            <div id="bulk-mode-notice" style="display: none; background: #e7f3ff; border: 1px solid #007bff; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+                <strong>Bulk Annotation Mode:</strong> Only Context, Scene, and Tags will be applied to all selected frames. Description and Action fields will be ignored.
+            </div>
             
             <!-- Two-column header with button events and frame snapshot -->
             <div id="modal-frame-snapshot" style="display: flex; gap: 20px; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 2px solid #dee2e6;">
@@ -115,12 +178,11 @@
                             <div id="scene-buttons" style="margin-top:5px;"></div>
                         </div>
                         
-                        <!-- Tags field hidden but kept for backend compatibility -->
-                        <input type="hidden" id="tags" name="tags" value="">
-                        <!-- <div id="tags-recent" style="display:none; margin-bottom: 15px;">
-                            <small style="color:#666;">Recent tags:</small><br>
+                        <label>Tags:<br><input type="text" id="tags" name="tags" style="width:100%; margin-bottom: 8px;" autocomplete="off" placeholder="Enter comma-separated tags..."></label>
+                        <div id="tags-recent" style="margin-bottom: 15px;">
+                            <small style="color:#666;">Recommended tags:</small><br>
                             <div id="tags-buttons" style="margin-top:5px;"></div>
-                        </div> -->
+                        </div>
                     </div>
                     
                     <!-- Right Column: Action Classification -->
@@ -183,9 +245,60 @@ let frameOrder = [];
 let allFrames = [];
 let framesWithContext = [];
 let framesLoaded = 0;
-const FRAMES_PER_BATCH = 50;
+const FRAMES_PER_BATCH = 20; // Reduced batch size for better performance
 let loadingFrames = false;
 let currentSessionId = null;
+let isBulkMode = false;
+
+// Handle sticky navigation and frame loading with throttling
+let scrollTimeout;
+function handleScrollEvents() {
+    // Clear existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Throttle scroll events to improve performance
+    scrollTimeout = setTimeout(() => {
+        // Handle sticky navigation
+        handleStickyNav();
+        
+        // Handle infinite scroll for frame loading
+        const scrollY = window.scrollY || window.pageYOffset;
+        const viewport = window.innerHeight;
+        const fullHeight = document.body.offsetHeight;
+        
+        // Load more frames when near the bottom (reduced threshold for better UX)
+        if (scrollY + viewport > fullHeight - 200) {
+            if (framesLoaded < allFrames.length && !loadingFrames) {
+                loadNextFrames();
+            }
+        }
+    }, 16); // ~60fps throttling
+}
+
+// Handle sticky navigation (called from throttled scroll handler)
+function handleStickyNav() {
+    const sessionInfo = document.getElementById('session-info');
+    const scrolled = window.scrollY > 20;
+    
+    if (scrolled) {
+        sessionInfo.classList.add('scrolled');
+    } else {
+        sessionInfo.classList.remove('scrolled');
+    }
+}
+
+// Update bulk annotate button state
+function updateBulkAnnotateButton() {
+    const button = document.getElementById('bulk-annotate-btn');
+    const hasSelection = selectedFrames.size > 0;
+    
+    button.disabled = !hasSelection;
+    button.title = hasSelection 
+        ? `Bulk annotate ${selectedFrames.size} selected frame(s)`
+        : 'Select frames to enable bulk annotation';
+}
 
 // Input history for modal form fields
 let inputHistory = {
@@ -340,35 +453,53 @@ function updateRecentButtons(fieldName) {
     buttonsContainer.innerHTML = '';
     const recentItems = inputHistory[fieldName] || [];
     
-    recentItems.slice(0, 20).forEach(item => {
-        const button = document.createElement('button');
-        button.textContent = item;
-        button.className = 'recent-button';
-        button.type = 'button';
-        button.title = item; // Full text on hover
-        button.onclick = () => {
-            const field = document.getElementById(fieldName);
-            if (fieldName === 'tags') {
-                // For tags, append with comma if there's existing content
-                const currentValue = field.value.trim();
-                if (currentValue) {
-                    field.value = currentValue + ', ' + item;
-                } else {
-                    field.value = item;
+    if (fieldName === 'tags') {
+        // For tags, show unique individual tags as recommendations
+        const uniqueTags = [...new Set(recentItems)];
+        uniqueTags.slice(0, 20).forEach(tag => {
+            const button = document.createElement('button');
+            button.textContent = tag;
+            button.className = 'recent-button';
+            button.type = 'button';
+            button.title = `Add tag: ${tag}`;
+            button.onclick = () => {
+                const field = document.getElementById(fieldName);
+                const currentTags = field.value.split(',').map(t => t.trim()).filter(t => t);
+                
+                // Only add if tag is not already present
+                if (!currentTags.includes(tag)) {
+                    if (field.value.trim()) {
+                        field.value = field.value.trim() + ', ' + tag;
+                    } else {
+                        field.value = tag;
+                    }
                 }
-            } else {
+                field.focus();
+            };
+            buttonsContainer.appendChild(button);
+        });
+    } else {
+        // For other fields, show recent values
+        recentItems.slice(0, 20).forEach(item => {
+            const button = document.createElement('button');
+            button.textContent = item;
+            button.className = 'recent-button';
+            button.type = 'button';
+            button.title = item; // Full text on hover
+            button.onclick = () => {
+                const field = document.getElementById(fieldName);
                 // For other fields, replace the content
                 field.value = item;
-            }
-            field.focus();
-        };
-        buttonsContainer.appendChild(button);
-    });
+                field.focus();
+            };
+            buttonsContainer.appendChild(button);
+        });
+    }
 }
 
 // Handle arrow key navigation in form fields
 function setupFormFieldNavigation() {
-    const fields = ['scene', 'tags', 'description']; // Removed dropdown fields since they handle arrow keys natively
+    const fields = ['scene', 'tags', 'description']; // Added tags back to navigation
     
     fields.forEach(fieldName => {
         const field = document.getElementById(fieldName);
@@ -552,11 +683,7 @@ function refreshSessions() {
 function showSessionInfo(session) {
     document.getElementById('current-session-id').textContent = session.session_id;
     const metadata = session.metadata;
-    document.getElementById('session-metadata').innerHTML = `
-        Created: ${new Date(metadata.created_at).toLocaleString()}<br>
-        Total Frames: ${metadata.total_frames}<br>
-        Frame Range: ${metadata.frame_range?.min}-${metadata.frame_range?.max}
-    `;
+    document.getElementById('session-metadata').innerHTML = ``;
     document.getElementById('current-session-info').style.display = 'block';
 }
 
@@ -607,6 +734,9 @@ function toggleFrame(frame, event) {
         }
         lastSelectedFrame = frame;
     }
+    
+    // Update bulk annotate button state
+    updateBulkAnnotateButton();
 }
 
 function loadFrames() {
@@ -635,45 +765,60 @@ function loadNextFrames() {
     if (loadingFrames) return;
     loadingFrames = true;
     const nextBatch = allFrames.slice(framesLoaded, framesLoaded + FRAMES_PER_BATCH);
+    
+    // Load context info for the batch (faster, smaller responses)
     const framePromises = nextBatch.map(frame =>
         fetch(apiUrl('frame_context', frame.frame))
             .then(res => ({ frame: frame.frame, hasContext: res.status === 200 }))
             .catch(() => ({ frame: frame.frame, hasContext: false }))
     );
+    
     Promise.all(framePromises).then(batchWithContext => {
         framesWithContext = framesWithContext.concat(batchWithContext);
         const grid = document.getElementById('frame-grid');
+        
+        // Create frame elements without images first (faster DOM update)
+        const fragment = document.createDocumentFragment();
+        
         batchWithContext.forEach(({ frame, hasContext }) => {
             const div = document.createElement('div');
             div.className = 'frame-item' + (hasContext ? ' annotated' : '');
             div.id = 'frame-' + frame;
             div.onclick = (e) => toggleFrame(frame, e);
-            div.innerHTML = `<img src="${apiUrl('frame_image', frame)}" alt="Frame ${frame}"><br>Frame ${frame}`;
+            
+            // Create placeholder initially, load image lazily
+            div.innerHTML = `<div style="width: 120px; height: 90px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; border: 1px solid #ddd;">Loading...</div><br>Frame ${frame}`;
+            
             div.onmouseenter = (e) => showFrameDataPopup(frame, div);
             div.onmouseleave = hideFrameDataPopup;
-            grid.appendChild(div);
+            
+            fragment.appendChild(div);
+        });
+        
+        // Add all elements to DOM at once
+        grid.appendChild(fragment);
+        
+        // Now lazily load images using Intersection Observer
+        batchWithContext.forEach(({ frame }) => {
+            const div = document.getElementById('frame-' + frame);
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        // Load the actual image when it comes into view
+                        div.innerHTML = `<img src="${apiUrl('frame_image', frame)}" alt="Frame ${frame}" loading="lazy"><br>Frame ${frame}`;
+                        observer.unobserve(div);
+                    }
+                });
+            }, { 
+                rootMargin: '100px' // Start loading when within 100px of viewport
+            });
+            observer.observe(div);
         });
         
         // Update completion stats after loading frames
         updateCompletionStats();
         framesLoaded += nextBatch.length;
         loadingFrames = false;
-        
-        // Load more frames when near the end
-        if (framesLoaded < allFrames.length) {
-            setTimeout(() => {
-                const lastVisibleFrame = Array.from(document.querySelectorAll('.frame-item')).pop();
-                if (lastVisibleFrame) {
-                    const observer = new IntersectionObserver((entries) => {
-                        if (entries[0].isIntersecting) {
-                            loadNextFrames();
-                            observer.disconnect();
-                        }
-                    });
-                    observer.observe(lastVisibleFrame);
-                }
-            }, 100);
-        }
     });
 }
 
@@ -812,28 +957,39 @@ function copyAnnotation(frame) {
         .catch(err => console.error('Error copying annotation:', err));
 }
 
-// Update modal title to show when copied data is available
+// Open bulk annotation modal
+function openBulkAnnotateModal() {
+    if (selectedFrames.size === 0) {
+        alert('Please select frames to annotate.');
+        return;
+    }
+    
+    isBulkMode = true;
+    openModal();
+}
+
+// Update modal title to show when copied data is available or bulk mode
 function updateModalTitle() {
-    const title = document.querySelector('#annotation-modal h2');
-    if (copiedAnnotation) {
+    const title = document.getElementById('modal-title');
+    const bulkNotice = document.getElementById('bulk-mode-notice');
+    
+    if (isBulkMode) {
+        title.textContent = `Bulk Annotate ${selectedFrames.size} Frames`;
+        title.style.color = '#fd7e14';
+        bulkNotice.style.display = 'block';
+    } else if (copiedAnnotation) {
         title.textContent = 'Annotate Selected Frames (📋 Copied data available)';
         title.style.color = '#28a745';
+        bulkNotice.style.display = 'none';
     } else {
         title.textContent = 'Annotate Selected Frames';
         title.style.color = '';
+        bulkNotice.style.display = 'none';
     }
 }
 
-        window.addEventListener('scroll', function() {
-            const scrollY = window.scrollY || window.pageYOffset;
-            const viewport = window.innerHeight;
-            const fullHeight = document.body.offsetHeight;
-            if (scrollY + viewport > fullHeight - 300) {
-                if (framesLoaded < allFrames.length) {
-                    loadNextFrames();
-                }
-            }
-        });
+        // Use our optimized scroll handler
+        window.addEventListener('scroll', handleScrollEvents, { passive: true });
         function openModal() {
             document.getElementById('annotation-modal').style.display = 'block';
             
@@ -845,142 +1001,181 @@ function updateModalTitle() {
             // Update the frame snapshot
             updateModalFrameSnapshot();
             
-            if (firstSelectedFrame) {
-                // Check if the frame has existing annotations
-                fetch(apiUrl('frame_event', firstSelectedFrame))
-                    .then(res => res.ok ? res.json() : null)
-                    .then(data => {
-                        if (data && data.annotations && (data.annotations.context || data.annotations.scene || data.annotations.tags || data.annotations.description)) {
-                            // Frame has existing annotations - use them
-                            document.getElementById('context').value = data.annotations.context || '';
-                            document.getElementById('scene').value = data.annotations.scene || '';
-                            document.getElementById('tags').value = ''; // Always empty now
-                            document.getElementById('description').value = data.annotations.description || '';
-                            document.getElementById('action_type').value = data.annotations.action_type || '';
-                            document.getElementById('intent').value = data.annotations.intent || '';
-                            document.getElementById('outcome').value = data.annotations.outcome || '';
-                            // Clear CNN confidence indicators
-                            document.getElementById('context-confidence').textContent = '';
-                            document.getElementById('scene-confidence').textContent = '';
-                        } else if (copiedAnnotation) {
-                            // Frame has no annotations but we have copied data - use copied data
-                            document.getElementById('context').value = copiedAnnotation.context;
-                            document.getElementById('scene').value = copiedAnnotation.scene;
-                            document.getElementById('tags').value = ''; // Always empty now
-                            document.getElementById('description').value = copiedAnnotation.description;
-                            document.getElementById('action_type').value = copiedAnnotation.action_type;
-                            document.getElementById('intent').value = copiedAnnotation.intent;
-                            document.getElementById('outcome').value = copiedAnnotation.outcome;
-                            // Clear CNN confidence indicators
-                            document.getElementById('context-confidence').textContent = '';
-                            document.getElementById('scene-confidence').textContent = '';
-                        } else {
-                            // Frame has no annotations and no copied data - check CNN predictions first
-                            let usedCnnPredictions = false;
-                            
-                            // Clear confidence indicators first
-                            document.getElementById('context-confidence').textContent = '';
-                            document.getElementById('scene-confidence').textContent = '';
-                            
-                            if (data && data.cnn_predictions) {
-                                const cnnContext = data.cnn_predictions.context;
-                                const cnnScene = data.cnn_predictions.scene;
+            // In bulk mode, only populate with defaults, don't load existing annotations
+            if (isBulkMode) {
+                // Clear all fields first
+                document.getElementById('context').value = '';
+                document.getElementById('scene').value = '';
+                document.getElementById('tags').value = '';
+                document.getElementById('description').value = '';
+                document.getElementById('action_type').value = '';
+                document.getElementById('intent').value = '';
+                document.getElementById('outcome').value = '';
+                
+                // Use recent values as defaults for bulk operations
+                const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
+                const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
+                const lastTags = inputHistory.tags && inputHistory.tags.length > 0 ? inputHistory.tags.slice(0, 3).join(', ') : '';
+                
+                document.getElementById('context').value = lastContext;
+                document.getElementById('scene').value = lastScene;
+                document.getElementById('tags').value = lastTags;
+                
+                // Disable action fields in bulk mode
+                document.getElementById('action_type').disabled = true;
+                document.getElementById('intent').disabled = true;
+                document.getElementById('outcome').disabled = true;
+                document.getElementById('description').disabled = true;
+            } else {
+                // Enable all fields in normal mode
+                document.getElementById('action_type').disabled = false;
+                document.getElementById('intent').disabled = false;
+                document.getElementById('outcome').disabled = false;
+                document.getElementById('description').disabled = false;
+                
+                // Normal single/multi-frame annotation logic (existing code)
+                if (firstSelectedFrame) {
+                    // Check if the frame has existing annotations
+                    fetch(apiUrl('frame_event', firstSelectedFrame))
+                        .then(res => res.ok ? res.json() : null)
+                        .then(data => {
+                            if (data && data.annotations && (data.annotations.context || data.annotations.scene || data.annotations.tags || data.annotations.description)) {
+                                // Frame has existing annotations - use them
+                                document.getElementById('context').value = data.annotations.context || '';
+                                document.getElementById('scene').value = data.annotations.scene || '';
+                                document.getElementById('tags').value = data.annotations.tags || '';
+                                document.getElementById('description').value = data.annotations.description || '';
+                                document.getElementById('action_type').value = data.annotations.action_type || '';
+                                document.getElementById('intent').value = data.annotations.intent || '';
+                                document.getElementById('outcome').value = data.annotations.outcome || '';
+                                // Clear CNN confidence indicators
+                                document.getElementById('context-confidence').textContent = '';
+                                document.getElementById('scene-confidence').textContent = '';
+                            } else if (copiedAnnotation) {
+                                // Frame has no annotations but we have copied data - use copied data
+                                document.getElementById('context').value = copiedAnnotation.context;
+                                document.getElementById('scene').value = copiedAnnotation.scene;
+                                document.getElementById('tags').value = copiedAnnotation.tags;
+                                document.getElementById('description').value = copiedAnnotation.description;
+                                document.getElementById('action_type').value = copiedAnnotation.action_type;
+                                document.getElementById('intent').value = copiedAnnotation.intent;
+                                document.getElementById('outcome').value = copiedAnnotation.outcome;
+                                // Clear CNN confidence indicators
+                                document.getElementById('context-confidence').textContent = '';
+                                document.getElementById('scene-confidence').textContent = '';
+                            } else {
+                                // Frame has no annotations and no copied data - check CNN predictions first
+                                let usedCnnPredictions = false;
                                 
-                                // Check if we have high-confidence predictions for both context and scene
-                                const hasHighConfidenceContext = cnnContext && cnnContext.confidence > 0.5;
-                                const hasHighConfidenceScene = cnnScene && cnnScene.confidence > 0.5;
+                                // Clear confidence indicators first
+                                document.getElementById('context-confidence').textContent = '';
+                                document.getElementById('scene-confidence').textContent = '';
                                 
-                                if (hasHighConfidenceContext || hasHighConfidenceScene) {
-                                    // Use CNN predictions when available with high confidence
-                                    if (hasHighConfidenceContext) {
-                                        document.getElementById('context').value = cnnContext.prediction;
-                                        document.getElementById('context-confidence').textContent = `(CNN: ${(cnnContext.confidence * 100).toFixed(1)}%)`;
-                                    }
-                                    if (hasHighConfidenceScene) {
-                                        document.getElementById('scene').value = cnnScene.prediction;
-                                        document.getElementById('scene-confidence').textContent = `(CNN: ${(cnnScene.confidence * 100).toFixed(1)}%)`;
-                                    }
+                                if (data && data.cnn_predictions) {
+                                    const cnnContext = data.cnn_predictions.context;
+                                    const cnnScene = data.cnn_predictions.scene;
                                     
-                                    // Clear description when using CNN predictions
-                                    document.getElementById('description').value = '';
-                                    usedCnnPredictions = true;
+                                    // Check if we have high-confidence predictions for both context and scene
+                                    const hasHighConfidenceContext = cnnContext && cnnContext.confidence > 0.5;
+                                    const hasHighConfidenceScene = cnnScene && cnnScene.confidence > 0.5;
+                                    
+                                    if (hasHighConfidenceContext || hasHighConfidenceScene) {
+                                        // Use CNN predictions when available with high confidence
+                                        if (hasHighConfidenceContext) {
+                                            document.getElementById('context').value = cnnContext.prediction;
+                                            document.getElementById('context-confidence').textContent = `(CNN: ${(cnnContext.confidence * 100).toFixed(1)}%)`;
+                                        }
+                                        if (hasHighConfidenceScene) {
+                                            document.getElementById('scene').value = cnnScene.prediction;
+                                            document.getElementById('scene-confidence').textContent = `(CNN: ${(cnnScene.confidence * 100).toFixed(1)}%)`;
+                                        }
+                                        
+                                        // Clear description and tags when using CNN predictions
+                                        document.getElementById('description').value = '';
+                                        document.getElementById('tags').value = '';
+                                        usedCnnPredictions = true;
+                                    }
                                 }
+                                
+                                // Only use last annotations if we didn't use CNN predictions
+                                if (!usedCnnPredictions) {
+                                    const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
+                                    const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
+                                    const lastTags = inputHistory.tags && inputHistory.tags.length > 0 ? inputHistory.tags.slice(0, 3).join(', ') : '';
+                                    const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
+                                    
+                                    document.getElementById('context').value = lastContext;
+                                    document.getElementById('scene').value = lastScene;
+                                    document.getElementById('tags').value = lastTags;
+                                    document.getElementById('description').value = lastDescription;
+                                }
+                                
+                                // Leave action fields empty
+                                document.getElementById('action_type').value = '';
+                                document.getElementById('intent').value = '';
+                                document.getElementById('outcome').value = '';
                             }
-                            
-                            // Only use last annotations if we didn't use CNN predictions
-                            if (!usedCnnPredictions) {
+                        })
+                        .catch(err => {
+                            console.error('Error checking frame annotations:', err);
+                            // Fallback to copied annotation or last annotations if API call fails
+                            if (copiedAnnotation) {
+                                document.getElementById('context').value = copiedAnnotation.context;
+                                document.getElementById('scene').value = copiedAnnotation.scene;
+                                document.getElementById('tags').value = copiedAnnotation.tags;
+                                document.getElementById('description').value = copiedAnnotation.description;
+                                document.getElementById('action_type').value = copiedAnnotation.action_type;
+                                document.getElementById('intent').value = copiedAnnotation.intent;
+                                document.getElementById('outcome').value = copiedAnnotation.outcome;
+                            } else {
+                                // Use last annotations (excluding actions)
                                 const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
                                 const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
+                                const lastTags = inputHistory.tags && inputHistory.tags.length > 0 ? inputHistory.tags.slice(0, 3).join(', ') : '';
                                 const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
                                 
                                 document.getElementById('context').value = lastContext;
                                 document.getElementById('scene').value = lastScene;
+                                document.getElementById('tags').value = lastTags;
                                 document.getElementById('description').value = lastDescription;
+                                // Leave action fields empty
+                                document.getElementById('action_type').value = '';
+                                document.getElementById('intent').value = '';
+                                document.getElementById('outcome').value = '';
                             }
-                            
-                            document.getElementById('tags').value = ''; // Always empty now
-                            // Leave action fields empty
-                            document.getElementById('action_type').value = '';
-                            document.getElementById('intent').value = '';
-                            document.getElementById('outcome').value = '';
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Error checking frame annotations:', err);
-                        // Fallback to copied annotation or last annotations if API call fails
-                        if (copiedAnnotation) {
-                            document.getElementById('context').value = copiedAnnotation.context;
-                            document.getElementById('scene').value = copiedAnnotation.scene;
-                            document.getElementById('tags').value = ''; // Always empty now
-                            document.getElementById('description').value = copiedAnnotation.description;
-                            document.getElementById('action_type').value = copiedAnnotation.action_type;
-                            document.getElementById('intent').value = copiedAnnotation.intent;
-                            document.getElementById('outcome').value = copiedAnnotation.outcome;
-                        } else {
-                            // Use last annotations (excluding actions)
-                            const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
-                            const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
-                            const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
-                            
-                            document.getElementById('context').value = lastContext;
-                            document.getElementById('scene').value = lastScene;
-                            document.getElementById('tags').value = ''; // Always empty now
-                            document.getElementById('description').value = lastDescription;
-                            // Leave action fields empty
-                            document.getElementById('action_type').value = '';
-                            document.getElementById('intent').value = '';
-                            document.getElementById('outcome').value = '';
-                        }
-                    });
-            } else {
-                // No frames selected - use copied annotation or last annotations
-                if (copiedAnnotation) {
-                    document.getElementById('context').value = copiedAnnotation.context;
-                    document.getElementById('scene').value = copiedAnnotation.scene;
-                    document.getElementById('tags').value = ''; // Always empty now
-                    document.getElementById('description').value = copiedAnnotation.description;
-                    document.getElementById('action_type').value = copiedAnnotation.action_type;
-                    document.getElementById('intent').value = copiedAnnotation.intent;
-                    document.getElementById('outcome').value = copiedAnnotation.outcome;
+                        });
                 } else {
-                    // Use last annotations (excluding actions)
-                    const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
-                    const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
-                    const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
-                    
-                    document.getElementById('context').value = lastContext;
-                    document.getElementById('scene').value = lastScene;
-                    document.getElementById('tags').value = ''; // Always empty now
-                    document.getElementById('description').value = lastDescription;
-                    // Leave action fields empty
-                    document.getElementById('action_type').value = '';
-                    document.getElementById('intent').value = '';
-                    document.getElementById('outcome').value = '';
+                    // No frames selected - use copied annotation or last annotations
+                    if (copiedAnnotation) {
+                        document.getElementById('context').value = copiedAnnotation.context;
+                        document.getElementById('scene').value = copiedAnnotation.scene;
+                        document.getElementById('tags').value = copiedAnnotation.tags;
+                        document.getElementById('description').value = copiedAnnotation.description;
+                        document.getElementById('action_type').value = copiedAnnotation.action_type;
+                        document.getElementById('intent').value = copiedAnnotation.intent;
+                        document.getElementById('outcome').value = copiedAnnotation.outcome;
+                    } else {
+                        // Use last annotations (excluding actions)
+                        const lastContext = inputHistory.context && inputHistory.context.length > 0 ? inputHistory.context[0] : '';
+                        const lastScene = inputHistory.scene && inputHistory.scene.length > 0 ? inputHistory.scene[0] : '';
+                        const lastTags = inputHistory.tags && inputHistory.tags.length > 0 ? inputHistory.tags.slice(0, 3).join(', ') : '';
+                        const lastDescription = inputHistory.description && inputHistory.description.length > 0 ? inputHistory.description[0] : '';
+                        
+                        document.getElementById('context').value = lastContext;
+                        document.getElementById('scene').value = lastScene;
+                        document.getElementById('tags').value = lastTags;
+                        document.getElementById('description').value = lastDescription;
+                        // Leave action fields empty
+                        document.getElementById('action_type').value = '';
+                        document.getElementById('intent').value = '';
+                        document.getElementById('outcome').value = '';
+                    }
                 }
             }
             
-            // Populate recent buttons - remove tags
+            // Populate recent buttons - restore tags
             updateRecentButtons('scene');
+            updateRecentButtons('tags');
             
             document.getElementById('scene').focus();
             
@@ -1048,6 +1243,15 @@ function updateModalFrameSnapshot() {
             document.getElementById('annotation-modal').style.display = 'none';
             document.getElementById('annotation-form').reset();
             
+            // Reset bulk mode
+            isBulkMode = false;
+            
+            // Re-enable all fields
+            document.getElementById('action_type').disabled = false;
+            document.getElementById('intent').disabled = false;
+            document.getElementById('outcome').disabled = false;
+            document.getElementById('description').disabled = false;
+            
             // Hide any custom input areas
             document.getElementById('context_custom').style.display = 'none';
             document.getElementById('action_type_custom').style.display = 'none';
@@ -1102,24 +1306,43 @@ function updateModalFrameSnapshot() {
             addToHistory('context', context);
             addToHistory('scene', scene);
             addToHistory('tags', tags);
-            addToHistory('description', description);
-            if (action_type && action_type.trim()) addToHistory('action_type', action_type);
-            if (intent && intent.trim()) addToHistory('intent', intent);
-            if (outcome && outcome.trim()) addToHistory('outcome', outcome);
+            if (!isBulkMode) {
+                // Only add these to history in normal mode
+                addToHistory('description', description);
+                if (action_type && action_type.trim()) addToHistory('action_type', action_type);
+                if (intent && intent.trim()) addToHistory('intent', intent);
+                if (outcome && outcome.trim()) addToHistory('outcome', outcome);
+            }
             
-            // Build annotation object - include all fields
-            const annotation = { 
-                context, 
-                scene, 
-                tags, 
-                description,
-                action_type: action_type || '',
-                intent: intent || '',
-                outcome: outcome || ''
-            };
+            // Build annotation object
+            let annotation;
+            if (isBulkMode) {
+                // In bulk mode, only include context, scene, and tags
+                annotation = { 
+                    context, 
+                    scene, 
+                    tags,
+                    description: '', // Clear description in bulk mode
+                    action_type: '', // Clear action fields in bulk mode
+                    intent: '',
+                    outcome: ''
+                };
+            } else {
+                // Normal mode - include all fields
+                annotation = { 
+                    context, 
+                    scene, 
+                    tags, 
+                    description,
+                    action_type: action_type || '',
+                    intent: intent || '',
+                    outcome: outcome || ''
+                };
+            }
             
             console.log('Submitting annotation:', annotation);
             console.log('For frames:', framesToUpdate);
+            console.log('Bulk mode:', isBulkMode);
             
             fetch(apiUrl('annotate'), {
                 method: 'POST',
@@ -1140,6 +1363,7 @@ function updateModalFrameSnapshot() {
                     }
                 });
                 selectedFrames.clear();
+                updateBulkAnnotateButton(); // Update button state
                 closeModal();
                 
                 // Update completion stats after saving annotations
@@ -1197,6 +1421,7 @@ function updateModalFrameSnapshot() {
                 });
                 
                 selectedFrames.clear();
+                updateBulkAnnotateButton(); // Update button state
                 closeModal();
                 
                 // Update completion stats after resetting annotations
@@ -1216,10 +1441,45 @@ function updateModalFrameSnapshot() {
             await loadAnnotationConfig(); // Load config before other operations
             initializeRecentButtons(); // Initialize recent buttons
             refreshSessions();
+            updateBulkAnnotateButton(); // Initialize bulk button state
             if (currentSessionId) {
                 loadFrames();
             }
+            
+            // Add optimized scroll event listener
+            window.addEventListener('scroll', handleScrollEvents, { passive: true });
         };
+        
+        // Inject to Database function
+        function injectToDatabase() {
+            // TODO: Implement database injection functionality
+            alert('Database injection functionality will be implemented here.');
+        }
+
+        // Toggle Annotated Frames visibility
+        let annotatedFramesHidden = false;
+        function toggleAnnotatedFrames() {
+            const button = event.target;
+            const annotatedFrames = document.querySelectorAll('.frame-item.annotated');
+            
+            if (annotatedFramesHidden) {
+                // Show annotated frames
+                annotatedFrames.forEach(frame => {
+                    frame.style.display = '';
+                });
+                button.innerHTML = '👁️ Hide Annotated Frames';
+                button.title = 'Hide annotated frames';
+                annotatedFramesHidden = false;
+            } else {
+                // Hide annotated frames
+                annotatedFrames.forEach(frame => {
+                    frame.style.display = 'none';
+                });
+                button.innerHTML = '👁️ Show Annotated Frames';
+                button.title = 'Show annotated frames';
+                annotatedFramesHidden = true;
+            }
+        }
     </script>
 </body>
 </html>

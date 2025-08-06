@@ -1,10 +1,12 @@
 from routes.frame_event import bp as frame_event_bp
+from routes.memory_analysis import bp as memory_analysis_bp
 from flask import Flask, render_template, jsonify, send_file, request
 import os
 import json
 
 app = Flask(__name__)
 app.register_blueprint(frame_event_bp)
+app.register_blueprint(memory_analysis_bp)
 # Set this to your per-frame output directory
 FRAME_BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', 'data'))
 

@@ -1,0 +1,22 @@
+{
+  "name": "IWRAM Full Analysis",
+  "description": "Train on IWRAM memory changes with full output analysis",
+  "memory_regions": [
+    "IWRAM"
+  ],
+  "output_fields": [
+    "context",
+    "scene",
+    "description",
+    "action_type",
+    "intent",
+    "outcome"
+  ],
+  "include_buttons": true,
+  "include_frame_info": false,
+  "include_region_in_output": true,
+  "max_memory_changes": 8,
+  "simple_output": false,
+  "simple_prompt": false,
+  "question": "What is happening in the game? Provide context, scene, description, action type, intent, and outcome."
+}

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBA Memory Analysis - Natural Language Database Query</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .query-input {
+            border-radius: 25px;
+            padding: 15px 20px;
+            font-size: 16px;
+        }
+        .query-button {
+            border-radius: 25px;
+            padding: 15px 30px;
+        }
+        .result-card {
+            border-left: 4px solid #007bff;
+            margin-bottom: 20px;
+        }
+        .sql-code {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .example-query {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .example-query:hover {
+            background-color: #f8f9fa;
+            border-color: #007bff;
+        }
+        .memory-address {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #dc3545;
+        }
+        .confidence-badge {
+            font-size: 0.8em;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .stats-card {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+        }
+        .table-hover tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+        .result-table {
+            font-size: 0.9em;
+        }
+        .description-text {
+            max-width: 300px;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+            <div class="container">
+                <a class="navbar-brand" href="/">
+                    <i class="fas fa-microchip me-2"></i>
+                    GBA Memory Analysis
+                </a>
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/">
+                        <i class="fas fa-home me-1"></i>
+                        Main App
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+            <!-- Header Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card stats-card">
+                        <div class="card-body text-center">
+                            <h1 class="card-title mb-3">
+                                <i class="fas fa-brain me-2"></i>
+                                Natural Language Memory Database Query
+                            </h1>
+                            <p class="card-text lead">
+                                Ask questions about GBA Medabots memory data in plain English!
+                            </p>
+                            <div class="row" id="stats-row">
+                                <div class="col-md-3">
+                                    <h4 id="total-sessions">-</h4>
+                                    <small>Gaming Sessions</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <h4 id="total-changes">-</h4>
+                                    <small>Memory Changes</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <h4 id="unique-addresses">-</h4>
+                                    <small>Unique Addresses</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <h4 id="total-annotations">-</h4>
+                                    <small>Annotations</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Query Interface -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-search me-2"></i>
+                                Ask Your Question
+                            </h5>
+                            <div class="input-group mb-3">
+                                <input type="text" id="query-input" class="form-control query-input" 
+                                       placeholder="e.g., Which addresses are likely used in the battle context?"
+                                       autocomplete="off">
+                                <button class="btn btn-primary query-button" id="submit-query">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    Query Database
+                                </button>
+                            </div>
+                            <div class="loading-spinner text-center" id="loading">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Processing...</span>
+                                </div>
+                                <p class="mt-2">Analyzing your question and querying the database...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Example Queries -->
+            <div class="row mb-4" id="examples-section">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-lightbulb me-2"></i>
+                                Example Questions
+                            </h5>
+                            <div class="row" id="examples-container">
+                                <!-- Examples will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="row" id="results-section" style="display: none;">
+                <div class="col-12">
+                    <div class="card result-card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Query Results
+                            </h5>
+                            <div>
+                                <span class="badge confidence-badge" id="confidence-badge">-</span>
+                                <span class="badge bg-secondary ms-2" id="timing-badge">-</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Query Info -->
+                            <div class="mb-3">
+                                <h6>Your Question:</h6>
+                                <p class="text-muted" id="original-query">-</p>
+                                
+                                <h6>AI Explanation:</h6>
+                                <p id="explanation">-</p>
+                            </div>
+
+                            <!-- Results Table -->
+                            <div class="table-responsive">
+                                <table class="table table-hover result-table" id="results-table">
+                                    <thead class="table-dark">
+                                        <tr id="table-headers">
+                                            <!-- Headers will be populated dynamically -->
+                                        </tr>
+                                    </thead>
+                                    <tbody id="table-body">
+                                        <!-- Results will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- SQL Query Details -->
+                            <div class="mt-3">
+                                <h6>
+                                    <a class="text-decoration-none" data-bs-toggle="collapse" href="#sql-details" 
+                                       role="button" aria-expanded="false">
+                                        <i class="fas fa-code me-2"></i>
+                                        View Generated SQL Query
+                                    </a>
+                                </h6>
+                                <div class="collapse" id="sql-details">
+                                    <div class="sql-code" id="sql-query">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Section -->
+            <div class="row" id="error-section" style="display: none;">
+                <div class="col-12">
+                    <div class="alert alert-danger" role="alert">
+                        <h4 class="alert-heading">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error
+                        </h4>
+                        <p id="error-message">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class MemoryAnalysisApp {
+            constructor() {
+                this.initializeEventListeners();
+                this.loadStats();
+                this.loadExamples();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('submit-query').addEventListener('click', () => this.submitQuery());
+                document.getElementById('query-input').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.submitQuery();
+                    }
+                });
+            }
+
+            async loadStats() {
+                try {
+                    const response = await fetch('/memory/api/stats');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const stats = data.stats;
+                        document.getElementById('total-sessions').textContent = stats.total_sessions.toLocaleString();
+                        document.getElementById('total-changes').textContent = stats.total_memory_changes.toLocaleString();
+                        document.getElementById('unique-addresses').textContent = stats.unique_addresses.toLocaleString();
+                        document.getElementById('total-annotations').textContent = stats.total_annotations.toLocaleString();
+                    }
+                } catch (error) {
+                    console.error('Error loading stats:', error);
+                }
+            }
+
+            async loadExamples() {
+                try {
+                    const response = await fetch('/memory/api/examples');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const container = document.getElementById('examples-container');
+                        container.innerHTML = data.examples.map(example => `
+                            <div class="col-md-6 mb-3">
+                                <div class="card example-query h-100" onclick="app.setQuery('${example.query}')">
+                                    <div class="card-body">
+                                        <h6 class="card-title">${example.query}</h6>
+                                        <p class="card-text text-muted small">${example.description}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                } catch (error) {
+                    console.error('Error loading examples:', error);
+                }
+            }
+
+            setQuery(query) {
+                document.getElementById('query-input').value = query;
+                this.submitQuery();
+            }
+
+            async submitQuery() {
+                const query = document.getElementById('query-input').value.trim();
+                if (!query) {
+                    alert('Please enter a question!');
+                    return;
+                }
+
+                this.showLoading();
+                this.hideResults();
+                this.hideError();
+
+                try {
+                    const response = await fetch('/memory/api/query', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ query: query })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.displayResults(data);
+                    } else {
+                        this.showError(data.error || 'Unknown error occurred');
+                    }
+                } catch (error) {
+                    this.showError(`Network error: ${error.message}`);
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            displayResults(data) {
+                // Update result info
+                document.getElementById('original-query').textContent = data.query;
+                document.getElementById('explanation').textContent = data.explanation;
+                document.getElementById('sql-query').textContent = data.sql_query;
+                
+                // Update badges
+                const confidenceBadge = document.getElementById('confidence-badge');
+                const confidence = Math.round(data.confidence * 100);
+                confidenceBadge.textContent = `${confidence}% confidence`;
+                confidenceBadge.className = `badge confidence-badge ${confidence > 70 ? 'bg-success' : confidence > 40 ? 'bg-warning' : 'bg-danger'}`;
+                
+                document.getElementById('timing-badge').textContent = `${data.execution_time.toFixed(3)}s`;
+
+                // Display results table
+                if (data.results && data.results.length > 0) {
+                    this.populateTable(data.results);
+                    this.showResults();
+                } else {
+                    this.showError('No results found for your query. Try rephrasing or using different keywords.');
+                }
+            }
+
+            populateTable(results) {
+                const table = document.getElementById('results-table');
+                const headers = document.getElementById('table-headers');
+                const body = document.getElementById('table-body');
+
+                // Clear existing content
+                headers.innerHTML = '';
+                body.innerHTML = '';
+
+                if (results.length === 0) return;
+
+                // Create headers
+                const columns = Object.keys(results[0]);
+                headers.innerHTML = columns.map(col => `<th>${this.formatColumnName(col)}</th>`).join('');
+
+                // Create rows
+                body.innerHTML = results.map(row => {
+                    return `<tr>${columns.map(col => `<td>${this.formatCellValue(col, row[col])}</td>`).join('')}</tr>`;
+                }).join('');
+            }
+
+            formatColumnName(col) {
+                return col.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ');
+            }
+
+            formatCellValue(column, value) {
+                if (value === null || value === undefined) return '-';
+
+                // Format addresses
+                if (column === 'address' || column === 'hex_address') {
+                    return `<span class="memory-address">${value}</span>`;
+                }
+
+                // Format descriptions (truncate long ones)
+                if (column.includes('description') || column.includes('descriptions')) {
+                    if (typeof value === 'string' && value.length > 100) {
+                        return `<span class="description-text" title="${value}">${value.substring(0, 100)}...</span>`;
+                    }
+                }
+
+                // Format numbers
+                if (typeof value === 'number') {
+                    if (column.includes('count') || column.includes('frequency') || column.includes('changes')) {
+                        return value.toLocaleString();
+                    }
+                    if (column.includes('time')) {
+                        return value.toFixed(3);
+                    }
+                    return value;
+                }
+
+                return value;
+            }
+
+            showLoading() {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('examples-section').style.display = 'none';
+            }
+
+            hideLoading() {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('examples-section').style.display = 'block';
+            }
+
+            showResults() {
+                document.getElementById('results-section').style.display = 'block';
+            }
+
+            hideResults() {
+                document.getElementById('results-section').style.display = 'none';
+            }
+
+            showError(message) {
+                document.getElementById('error-message').textContent = message;
+                document.getElementById('error-section').style.display = 'block';
+            }
+
+            hideError() {
+                document.getElementById('error-section').style.display = 'none';
+            }
+        }
+
+        // Initialize the app
+        const app = new MemoryAnalysisApp();
+    </script>
+</body>
+</html>
