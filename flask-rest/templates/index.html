@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Frame Grid Annotator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <h1 style="margin-bottom: 20px; position: fixed; top: 0; left: 0; right: 0; background: white; z-index: 50; padding: 20px;">Frame Grid Annotator</h1>
+    
+    <div class="session-info" id="session-info">
+        <div class="session-selector">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <img src="/static/images/rommer-gba-logo.png" alt="Rommer GBA" style="height: 40px; width: auto;">
+                    <label>Select Session: 
+                        <select id="session-select" onchange="changeSession()">
+                            <option value="">Loading sessions...</option>
+                        </select>
+                    </label>
+                    <div class="session-buttons">
+                        <button onclick="refreshSessions()">Refresh Sessions</button>
+                        <button class="annotate-button" id="bulk-annotate-btn" onclick="openApplyAllModal()" disabled title="Apply single field value to all selected frames">
+                            🎯 Apply All
+                        </button>
+                        <button class="annotate-button" id="bulk-complete-btn" onclick="markSelectedComplete()" disabled title="Mark selected frames as complete">
+                            ✅ Mark All Complete
+                        </button>
+                        <button class="annotate-button" onclick="injectToDatabase()" title="Inject selected frames to database">
+                            💾 Inject to Database
+                        </button>
+                        <select id="frame-filter" onchange="loadFrames(this.value, true)" title="Filter frames by status">
+                            <option value="all">All Frames</option>
+                            <option value="complete">Complete</option>
+                            <option value="partial">Partially Complete</option>
+                            <option value="archived">Archived</option>
+                            <option value="not_annotated">Not Annotated</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <a href="/memory/" style="padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">
+                        🧠 Memory Analysis
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="frame-preview">
+                <img id="preview-image" src="" alt="Frame Preview" style="display: none;">
+                <div id="preview-placeholder" style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 240px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 4px; color: #6c757d;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">🖼️</div>
+                    <div>Select or hover a frame</div>
+                </div>
+                <div id="preview-frame-label" style="margin-top: 10px; font-weight: bold; text-align: center; color: #495057;">No frame selected</div>
+            </div>
+            <div class="frame-info" id="info-content">
+                <div style="color: #6c757d;">Hover over or select a frame to see details</div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div class="frame-grid-container">
+                <div id="loading-spinner" style="display: none; text-align: center; padding: 20px;">
+                    <div>Loading frames...</div>
+                </div>
+                <div class="frame-grid" id="frame-grid">
+                    <!-- Frames will be loaded here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Annotation Modal -->
+    <div id="annotation-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <h2 id="modal-title" class="modal-title">Frame Info</h2>
+                </div>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Bulk Mode Notice -->
+                <div id="bulk-mode-notice" style="display: none; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 10px; margin-bottom: 15px; color: #856404;">
+                    <strong>Bulk Mode:</strong> You are annotating multiple frames at once. Only context, scene, and tags will be applied to all selected frames.
+                </div>
+
+                <!-- Top Section: Image and Basic Fields -->
+                <div class="modal-top-section">
+                    <div class="modal-frame-image-large">
+                        <img id="snapshot-image" src="" alt="Frame Snapshot">
+                    </div>
+                    <div class="modal-basic-fields">
+                        <!-- Buttons Section -->
+                        <div class="form-row">
+                            <label for="frame-buttons">Buttons:</label>
+                            <div class="buttons-section">
+                                <span class="controller-icon">🎮</span>
+                                <span id="frame-buttons-display" class="button-sequence">No button data</span>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <label for="context">Context: <span id="context-confidence" style="font-size: 11px; color: #6c757d;"></span></label>
+                            <select id="context" onchange="handleCustomFieldChange('context')">
+                                <option value="">Select context...</option>
+                            </select>
+                            <div id="context_custom" class="custom-input-group">
+                                <input type="text" id="context_input" placeholder="Enter custom context">
+                                <button type="button" class="add-custom-btn" onclick="addCustomValue('context')">Add</button>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <label for="scene">Scene: <span id="scene-confidence" style="font-size: 11px; color: #6c757d;"></span></label>
+                            <input type="text" id="scene" placeholder="Enter scene description" list="scenes-datalist" autocomplete="off">
+                            <datalist id="scenes-datalist"></datalist>
+                            <div id="scene_recent" class="recent-buttons"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Section: Two Columns -->
+                <form id="annotation-form">
+                    <div class="form-columns">
+                        <!-- Left Column: Tags and Quick Selects -->
+                        <div class="form-column-left">
+                            <div class="form-row">
+                                <label for="tags">Tags:</label>
+                                <div id="tags-list" class="tags-list" style="margin-bottom: 8px;"></div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="text" id="tags" placeholder="Enter tag" list="tags-datalist" autocomplete="off" style="flex: 1;">
+                                    <button type="button" id="add-tag-btn" style="padding: 4px 12px;">Add Tag +</button>
+                                </div>
+                                <datalist id="tags-datalist"></datalist>
+                                <div id="tags_recent" class="recent-buttons"></div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Action Fields -->
+                        <div class="form-column-right">
+                            <div class="form-row">
+                                <label for="action_type">Action Type:</label>
+                                <select id="action_type" onchange="handleCustomFieldChange('action_type')">
+                                    <option value="">Select action type...</option>
+                                </select>
+                                <div id="action_type_custom" class="custom-input-group">
+                                    <input type="text" id="action_type_input" placeholder="Enter custom action type">
+                                    <button type="button" class="add-custom-btn" onclick="addCustomValue('action_type')">Add</button>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <label for="intent">Intent:</label>
+                                <select id="intent" onchange="handleCustomFieldChange('intent')">
+                                    <option value="">Select intent...</option>
+                                </select>
+                                <div id="intent_custom" class="custom-input-group">
+                                    <input type="text" id="intent_input" placeholder="Enter custom intent">
+                                    <button type="button" class="add-custom-btn" onclick="addCustomValue('intent')">Add</button>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <label for="outcome">Outcome:</label>
+                                <select id="outcome">
+                                    <option value="">Select outcome...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Buttons -->
+                    <div class="form-buttons">
+                        <button type="submit" class="btn-primary">Save Annotation</button>
+                        <button type="button" onclick="markCompleteAndSave()" class="btn-success">Save & Mark Complete</button>
+                        <button type="button" onclick="clearCopiedAnnotation()" class="btn-orange" title="Clear copied annotation data">Clear Copied</button>
+                        <button type="button" onclick="resetAnnotations()" class="btn-orange" title="Reset annotations for selected frames">Reset Annotations</button>
+                        <button type="button" onclick="closeModal()" class="btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Apply All Modal -->
+    <div id="apply-all-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Apply Fields to Selected Frames</h2>
+                <span class="close" onclick="closeApplyAllModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="apply-all-info">
+                    <p>Apply field values to <span id="apply-all-frame-count">0</span> selected frame(s).</p>
+                    <p style="color: #666; font-size: 14px;">This will preserve existing data and only update the selected fields.</p>
+                </div>
+                
+                <!-- Dynamic Fields Container -->
+                <div id="apply-fields-container">
+                    <!-- Initial field will be added here -->
+                </div>
+                
+                <!-- Add Another Field Button -->
+                <div style="margin: 15px 0;">
+                    <button type="button" id="add-field-btn" onclick="addApplyField()" style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                        + Add Another Field
+                    </button>
+                </div>
+                
+                <div class="form-actions" style="margin-top: 20px; text-align: right;">
+                    <button type="button" onclick="closeApplyAllModal()" style="background: #6c757d; color: white; margin-right: 10px; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Cancel</button>
+                    <button type="button" onclick="applyAllFields()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Apply to All Selected</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/tags-lookup.js"></script>
+    <script src="/static/js/scenes-lookup.js"></script>
+    <script src="/static/js/actions-lookup.js"></script>
+    <script src="/static/js/contexts-lookup.js"></script>
+    <script src="/static/js/form-utils.js"></script>
+    <script src="/static/js/sidebar.js"></script>
+    <script src="/static/js/frames.js"></script>
+    <script src="/static/js/annotations.js"></script>
+    <script src="/static/js/apply-all.js"></script>
+    <script>
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set initial session ID if provided via URL
+            {% if session_id %}
+            window.initialSessionId = '{{ session_id }}';
+            {% endif %}
+            initializeApp();
+            setupFormSubmission();
+        });
+    </script>
+</body>
+</html>

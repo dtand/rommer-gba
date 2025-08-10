@@ -88,3 +88,22 @@ htmlcov/
 *.7z
 *.rar
 *.tar.gz
+
+# React/Vite app
+react-app/node_modules/
+react-app/dist/
+react-app/.env
+react-app/.DS_Store
+react-app/npm-debug.log*
+react-app/yarn-debug.log*
+react-app/yarn-error.log*
+react-app/pnpm-debug.log*
+react-app/lerna-debug.log*
+react-app/.vscode/*
+!react-app/.vscode/extensions.json
+react-app/.idea
+react-app/*.suo
+react-app/*.ntvs*
+react-app/*.njsproj
+react-app/*.sln
+react-app/*.sw?
