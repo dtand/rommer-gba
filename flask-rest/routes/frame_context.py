@@ -66,7 +66,10 @@ def api_frame_contexts(session_id):
             if os.path.isfile(annotations_path):
                 with open(annotations_path, 'r', encoding='utf-8') as f:
                     ann = json.load(f)
-                    if any(v for k, v in ann.items() if v not in [None, '', False] and k != 'complete'):
+                    # Must have at least one non-empty field and complete must be strictly False if present
+                    has_non_empty = any(v for k, v in ann.items() if v not in [None, '', False] and k != 'complete')
+                    is_complete_false = ('complete' in ann and ann.get('complete') is False) or ('complete' not in ann)
+                    if has_non_empty and is_complete_false:
                         include = True
         elif filter_type == 'NOT_ANNOTATED':
             if not os.path.isfile(annotations_path):
