@@ -1,24 +1,15 @@
 import React from 'react';
 import { Aside, MenuTitle, AnnotationContainer, TagPillContainer, TagPill, ActionList } from './SideBar.styled';
-import { FrameContextResponse } from '../../api/frameContext';
 import { FaGamepad, FaRegImage, FaUser, FaRobot } from 'react-icons/fa';
-
-interface SideBarProps {
-  activeFrame: FrameContextResponse | null;
-  activeFrameImage: string | null;
-  activeFrameId?: number | null;
-}
-
-function getFrameId(context: FrameContextResponse | null): string {
-  if (!context || typeof context.frame_id === 'undefined') return 'No frame selected';
-  return `Frame: ${context.frame_id}`;
-}
+import { useAnnotationContext } from '../../contexts/AnnotationContext';
 
 const Divider = () => (
   <div style={{ width: '100%', height: '1px', background: '#e0e0e0', margin: '12px 0' }} />
 );
 
-const SideBar: React.FC<SideBarProps> = ({ activeFrame, activeFrameImage, activeFrameId }) => {
+const SideBar: React.FC = () => {
+  const { activeFrame, activeFrameImage, activeFrameId } = useAnnotationContext();
+
   const frameIdText = activeFrameId != null && activeFrameId !== undefined ? `Frame: ${activeFrameId}` : 'No frame selected';
   const annotations = activeFrame?.annotations;
   const cnnAnnotations = activeFrame?.cnn_annotations;
@@ -40,9 +31,9 @@ const SideBar: React.FC<SideBarProps> = ({ activeFrame, activeFrameImage, active
   const contextValue = annotationSource?.context?.prediction || annotationSource?.context || '';
   const sceneValue = annotationSource?.scene?.prediction || annotationSource?.scene || '';
   const tagsValue = Array.isArray(annotationSource?.tags) ? annotationSource.tags : [];
-  const actionType = activeFrame?.action_type || '';
-  const intent = activeFrame?.intent || '';
-  const outcome = activeFrame?.outcome || '';
+  const actionType = annotationSource?.action_type || '';
+  const intent = annotationSource?.intent || '';
+  const outcome = annotationSource?.outcome || '';
 
   if (!activeFrame) {
     return (

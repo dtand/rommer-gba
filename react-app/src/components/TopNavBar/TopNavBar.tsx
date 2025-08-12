@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   NavBar,
   Row,
@@ -17,15 +17,8 @@ import {
 } from './TopNavBar.styled';
 import { FaLayerGroup, FaDatabase, FaFilter, FaFolderOpen, FaCheckCircle, FaSearch, FaMemory } from 'react-icons/fa';
 import { MdDoneAll } from 'react-icons/md';
-import { SessionInfo } from '../../api/sessions';
+import { useSessionContext } from '../../contexts/SessionContext';
 import { CustomDropdown } from '../CustomDropdown/CustomDropdown';
-
-interface TopNavBarProps {
-  sessions: SessionInfo[];
-  selectedSession: string;
-  onSessionChange: (sessionId: string) => void;
-  progress?: import('../../api/progress').ProgressResponse | null;
-}
 
 const filterOptions = [
   'All',
@@ -34,9 +27,20 @@ const filterOptions = [
   'Not Annotated'
 ];
 
-const TopNavBar: React.FC<TopNavBarProps> = ({ sessions, selectedSession, onSessionChange, progress }) => {
+const TopNavBar: React.FC = () => {
+  const { session, setSession, progress } = useSessionContext();
   const [filter, setFilter] = useState('All');
-  const session = sessions.find(s => s.session_id === selectedSession);
+  // Use sessions from AppContent state via local state
+  const [sessions, setSessions] = useState<any[]>([]);
+  useEffect(() => {
+    // Fetch sessions on mount
+    import('../../api/sessions').then(({ getSessions }) => {
+      getSessions().then((data: any) => {
+        setSessions(data.sessions || []);
+      });
+    });
+  }, []);
+  const selectedSession = session?.id || '';
   const gameName = session?.metadata?.game_name || 'Unknown';
   const totalFrames = session?.metadata?.total_frame_sets || 1;
   const complete = progress?.complete ?? 0;
@@ -48,13 +52,14 @@ const TopNavBar: React.FC<TopNavBarProps> = ({ sessions, selectedSession, onSess
       <Row>
         <LeftGroup>
           <LogoImage src="/rommer-gba.png" alt="Logo" />
-  
           <CustomDropdown
             label="Sessions"
-            options={sessions.map(s => s.session_id)}
+            options={sessions.map((s: any) => s.session_id)}
             value={selectedSession}
-            onChange={onSessionChange}
-            style={{ minWidth: 320, maxWidth: 520, width: '100%' }}
+            onChange={id => {
+              const found = sessions.find((s: any) => s.session_id === id);
+              setSession(found ? { id: found.session_id, metadata: found.metadata } : null);
+            }}
           />
           <CustomDropdown
             label="Filters"

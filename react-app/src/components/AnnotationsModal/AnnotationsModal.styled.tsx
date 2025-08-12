@@ -54,7 +54,7 @@ export const ModalDivider = styled.div`
   width: 100%;
   height: 1px;
   background: #e0e0e0;
-  margin: 18px 0;
+  margin: 9px 0;
 `;
 
 export const ModalSection = styled.div`
@@ -124,7 +124,8 @@ export const QuickTagButton = styled.button`
 
 export const ModalTagsRow = styled.div`
   width: 100%;
-  margin-top: 32px;
+  margin-top: 8px;
+  margin-bottom: 32px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -177,4 +178,36 @@ export const ModalImageButtonsRow = styled.div`
   align-items: center;
   justify-content: center;
   gap: 12px;
+`;
+
+export const MarkCompleteButton = styled.button`
+  background: #43e97b;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 18px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px #43e97b22;
+  transition: background 0.2s;
+  &:hover {
+    background: #2ecc71;
+  }
+`;
+
+export const SaveButton = styled.button`
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 18px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px #007bff22;
+  transition: background 0.2s;
+  &:hover {
+    background: #0056b3;
+  }
 `;
