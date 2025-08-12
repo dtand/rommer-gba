@@ -15,6 +15,7 @@ const AnnotationGrid: React.FC = () => {
     frameImages,
     frameContexts,
     selectedIndices,
+    isEndOfData,
     setSelectedIndices,
     setActiveFrame,
     setActiveFrameImage,
@@ -77,7 +78,7 @@ const AnnotationGrid: React.FC = () => {
   React.useEffect(() => {
     if (!gridRef.current) return;
     const { scrollHeight, clientHeight } = gridRef.current;
-    if (scrollHeight <= clientHeight) {
+    if (scrollHeight <= clientHeight && !isEndOfData) {
       handleLoadMore();
     }
   }, [frameImages.length, frameContexts.length, handleLoadMore]);
@@ -91,30 +92,36 @@ const AnnotationGrid: React.FC = () => {
 
   return (
     <GridWrapper ref={gridRef}>
-      <Grid>
-        {frameImages.map((img, i) => {
-          const status = getFrameStatus(frameContexts[i] || {});
-          return (
-            <FrameItem
-              key={i}
-              $selected={selectedIndices.includes(i)}
-              $hovered={hovered === i}
-              $complete={status === 'complete'}
-              $partial={status === 'partial'}
-              $notAnnotated={status === 'notAnnotated'}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              onClick={e => handleClick(i, e)}
-            >
-              {img ? (
-                <FrameImage src={img} alt={`Frame ${i + 1}`} />
-              ) : (
-                <FramePlaceholder />
-              )}
-            </FrameItem>
-          );
-        })}
-      </Grid>
+      {frameImages.length === 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+          <span style={{ color: '#bbb', fontSize: '1.5rem', fontWeight: 500 }}>No data for filter</span>
+        </div>
+      ) : (
+        <Grid>
+          {frameImages.map((img, i) => {
+            const status = getFrameStatus(frameContexts[i] || {});
+            return (
+              <FrameItem
+                key={i}
+                $selected={selectedIndices.includes(i)}
+                $hovered={hovered === i}
+                $complete={status === 'complete'}
+                $partial={status === 'partial'}
+                $notAnnotated={status === 'notAnnotated'}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                onClick={e => handleClick(i, e)}
+              >
+                {img ? (
+                  <FrameImage src={img} alt={`Frame ${i + 1}`} />
+                ) : (
+                  <FramePlaceholder />
+                )}
+              </FrameItem>
+            );
+          })}
+        </Grid>
+      )}
       <div style={{ height: 128 }} />
     </GridWrapper>
   );

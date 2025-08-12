@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { FrameContextResponse } from '../api/frameContext';
 import { getFrameImage } from '../api/frameImage';
-import { getFrameContext } from '../api/frameContext';
+import { getFrameContexts, FrameContextFilter } from '../api/frameContexts';
 import { useSessionContext } from './SessionContext';
 
 export type AnnotationContextType = {
@@ -21,12 +21,15 @@ export type AnnotationContextType = {
   setSelectedIndices: React.Dispatch<React.SetStateAction<number[]>>;
   selectedFrameIds: number[];
   setSelectedFrameIds: React.Dispatch<React.SetStateAction<number[]>>;
-  fetchFrames: (offset?: number, append?: boolean) => Promise<void>;
+  fetchFrames: (startId?: string, append?: boolean) => Promise<void>;
   handleLoadMore: () => void;
   isLoading: boolean;
   isBatchLoading: boolean;
+  isEndOfData: boolean;
   selectedFrameContexts: FrameContextResponse[];
   setSelectedFrameContexts: React.Dispatch<React.SetStateAction<FrameContextResponse[]>>;
+  setFilter: (filter: FrameContextFilter) => void;
+  currentFilter: FrameContextFilter;
 };
 
 const AnnotationContext = createContext<AnnotationContextType | undefined>(undefined);
@@ -35,6 +38,8 @@ export const AnnotationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [frameImages, setFrameImages] = useState<string[]>([]);
   const [frameContexts, setFrameContexts] = useState<FrameContextResponse[]>([]);
   const [frameOffset, setFrameOffset] = useState<number>(0);
+  const [currentStartId, setCurrentStartId] = useState<string>('1');
+  const [currentFilter, setCurrentFilter] = useState<FrameContextFilter>('ALL');
   const [activeFrame, setActiveFrame] = useState<FrameContextResponse | null>(null);
   const [activeFrameImage, setActiveFrameImage] = useState<string | null>(null);
   const [activeFrameId, setActiveFrameId] = useState<number | null>(null);
@@ -43,56 +48,108 @@ export const AnnotationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [selectedFrameContexts, setSelectedFrameContexts] = useState<FrameContextResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isBatchLoading, setIsBatchLoading] = useState(false);
+  const [isEndOfData, setIsEndOfData] = useState(false);
   const { session } = useSessionContext();
   const FRAME_LOAD_COUNT = 50;
 
-  const fetchFrames = async (offset = 0, append = false) => {
+  const fetchFrames = async (startId: string = '1', append: boolean = false, filterOverride?: FrameContextFilter) => {
     if (!session?.id) return;
     setIsLoading(true);
     setIsBatchLoading(true);
-    const totalFrames = session?.metadata?.total_frame_sets || 0;
-    const frameCount = Math.min(FRAME_LOAD_COUNT, totalFrames - offset);
-    const images: string[] = [];
-    const contexts: FrameContextResponse[] = [];
-    // Fetch all images and contexts in parallel for the batch
-    await Promise.all([
-      (async () => {
-        for (let i = 1 + offset; i <= frameCount + offset; i++) {
+    setIsEndOfData(false);
+    const pageSize = 50;
+    const filterToUse = filterOverride || currentFilter;
+    try {
+      const frameContextsResp = await getFrameContexts(session.id, startId, pageSize, filterToUse);
+      const contexts = frameContextsResp.contexts;
+
+      
+      // API returned no data at all, this filter has no data
+      if (contexts.length === 0 && startId === '1') {
+        resetState();
+        setIsEndOfData(true);
+        setIsLoading(false);
+        setIsBatchLoading(false);
+        return;
+      }
+
+      // API returned no data for this batch, but there are more frames to load
+      else if (contexts.length === 0) {
+        setIsEndOfData(true);
+        setIsLoading(false);
+        setIsBatchLoading(false);
+        return;
+      }
+
+      // API returned data, but the length is less than pageSize
+      // This means we have reached the end of available data for this filter
+      else if(contexts.length < pageSize){
+        setIsEndOfData(true);
+      }
+      
+      // Fetch images for each frame_set_id
+      const images: string[] = await Promise.all(
+        contexts.map(async ctx => {
           try {
-            const blob = await getFrameImage(session.id, i.toString());
-            images.push(URL.createObjectURL(blob));
+            const blob = await getFrameImage(session.id, ctx.frame_set_id);
+            return URL.createObjectURL(blob);
           } catch {
-            images.push('');
+            return '';
           }
-        }
-      })(),
-      (async () => {
-        for (let i = 1 + offset; i <= frameCount + offset; i++) {
-          try {
-            const context = await getFrameContext(session.id, i.toString());
-            contexts.push(context);
-          } catch {
-            contexts.push({});
-          }
-        }
-      })()
-    ]);
-    if (append) {
-      setFrameImages(prev => [...prev, ...images]);
-      setFrameContexts(prev => [...prev, ...contexts]);
-    } else {
-      setFrameImages(images);
-      setFrameContexts(contexts);
+        })
+      );
+      if (append) {
+        setFrameImages(prev => [...prev, ...images]);
+        setFrameContexts(prev => [...prev, ...contexts]);
+      } else {
+        setFrameImages(images);
+        setFrameContexts(contexts);
+      }
+      // Always update currentStartId to the frame_id of the last frame in the batch
+      if (contexts.length > 0) {
+        setCurrentStartId(contexts[contexts.length - 1].frame_set_id);
+      }
+    } finally {
+      setIsLoading(false);
+      setIsBatchLoading(false);
     }
+  };
+
+  const handleLoadMore = () => {
+    if (isLoading) return;
+    fetchFrames(currentStartId, true);
+  };
+
+  // Guard to prevent multiple fetches
+  const filterFetchRef = React.useRef(false);
+
+  const resetState = () => {
+    setFrameImages([]);
+    setFrameContexts([]);
+    setCurrentStartId('1');
+    setFrameOffset(0);
+    setActiveFrame(null);
+    setActiveFrameImage(null);
+    setActiveFrameId(null);
+    setSelectedIndices([]);
+    setSelectedFrameIds([]);
+    setSelectedFrameContexts([]);
+    setIsEndOfData(false);
     setIsLoading(false);
     setIsBatchLoading(false);
   };
 
-  const handleLoadMore = () => {
-    const totalFrames = session?.metadata?.total_frame_sets || 0;
-    if (frameOffset >= totalFrames || isLoading) return;
-    fetchFrames(frameOffset, true);
-    setFrameOffset(prev => prev + FRAME_LOAD_COUNT);
+  const setFilter = async (newFilter: FrameContextFilter) => {
+    if (filterFetchRef.current) return;
+    filterFetchRef.current = true;
+    setCurrentFilter(newFilter);
+    resetState();
+    setIsLoading(true);
+    setIsBatchLoading(true);
+    await fetchFrames('1', false, newFilter);
+    setIsLoading(false);
+    setIsBatchLoading(false);
+    filterFetchRef.current = false;
   };
 
   const initialLoadRef = React.useRef<string | null>(null);
@@ -102,7 +159,7 @@ export const AnnotationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       initialLoadRef.current = session.id;
       setIsLoading(true);
       (async () => {
-        await fetchFrames(0, false);
+        await fetchFrames('1', false);
         setFrameOffset(FRAME_LOAD_COUNT);
         setIsLoading(false);
       })();
@@ -135,7 +192,10 @@ export const AnnotationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       fetchFrames,
       handleLoadMore,
       isLoading,
-      isBatchLoading
+      isBatchLoading,
+      isEndOfData,
+      setFilter,
+      currentFilter
     }}>
       {children}
     </AnnotationContext.Provider>

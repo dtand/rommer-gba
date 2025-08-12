@@ -18,7 +18,9 @@ import {
 import { FaLayerGroup, FaDatabase, FaFilter, FaFolderOpen, FaCheckCircle, FaSearch, FaMemory } from 'react-icons/fa';
 import { MdDoneAll } from 'react-icons/md';
 import { useSessionContext } from '../../contexts/SessionContext';
+import { useAnnotationContext } from '../../contexts/AnnotationContext';
 import { CustomDropdown } from '../CustomDropdown/CustomDropdown';
+import { FrameContextFilter } from '../../api/frameContexts';
 
 const filterOptions = [
   'All',
@@ -29,7 +31,8 @@ const filterOptions = [
 
 const TopNavBar: React.FC = () => {
   const { session, setSession, progress } = useSessionContext();
-  const [filter, setFilter] = useState('All');
+  const { setFilter } = useAnnotationContext();
+  const [filter, setFilterLocal] = useState('All');
   // Use sessions from AppContent state via local state
   const [sessions, setSessions] = useState<any[]>([]);
   useEffect(() => {
@@ -46,6 +49,14 @@ const TopNavBar: React.FC = () => {
   const complete = progress?.complete ?? 0;
   const partial = progress?.partial ?? 0;
   const percent = Math.round((complete / totalFrames) * 100);
+
+  // Map UI filter to API filter
+  const filterMap: Record<string, FrameContextFilter> = {
+    'All': 'ALL',
+    'Annotated': 'ANNOTATED',
+    'Partially Annotated': 'PARTIALLY_ANNOTATED',
+    'Not Annotated': 'NOT_ANNOTATED'
+  };
 
   return (
     <NavBar>
@@ -65,7 +76,10 @@ const TopNavBar: React.FC = () => {
             label="Filters"
             options={filterOptions}
             value={filter}
-            onChange={setFilter}
+            onChange={val => {
+              setFilterLocal(val);
+              setFilter(filterMap[val]); // Update context filter and reset start position
+            }}
           />
         </LeftGroup>
         <RightGroup>
