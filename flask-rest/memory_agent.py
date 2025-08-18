@@ -116,7 +116,7 @@ class MemoryAnalysisAgent:
                 'scene': 'Specific scene or location in the game',
                 'tags': 'Tags for categorization',
                 'description': 'Human-readable description of what was happening',
-                'action_type': 'Type of action taken',
+                'action': 'Type of action taken',
                 'intent': 'Player intent or goal',
                 'outcome': 'Result or outcome of the action'
             }

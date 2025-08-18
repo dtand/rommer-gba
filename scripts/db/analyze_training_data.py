@@ -170,7 +170,7 @@ class TrainingDataAnalyzer:
         params = (context_filter,) if context_filter else ()
         
         query = f"""
-        SELECT a.context, a.scene, a.description, a.action_type, a.intent, a.outcome,
+        SELECT a.context, a.scene, a.description, a.action, a.intent, a.outcome,
                fs.buttons, fs.frames_in_set,
                GROUP_CONCAT(mc.address || ':' || mc.prev_val || '->' || mc.curr_val) as memory_changes
         FROM annotations a
@@ -190,7 +190,7 @@ class TrainingDataAnalyzer:
                 "context": row[0],
                 "scene": row[1], 
                 "description": row[2],
-                "action_type": row[3],
+                "action": row[3],
                 "intent": row[4],
                 "outcome": row[5],
                 "buttons": json.loads(row[6]) if row[6] else [],

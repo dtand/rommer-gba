@@ -56,7 +56,7 @@ def api_aggregate_actions(session_id):
                 try:
                     with open(annotations_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        action = data.get('action_type', None)
+                        action = data.get('action', None)
                         intent = data.get('intent', None)
                         outcome = data.get('outcome', None)
                         if action and isinstance(action, str):
@@ -97,7 +97,7 @@ def api_aggregate_all(session_id):
                         context = data.get('context', None)
                         scene = data.get('scene', None)
                         tags = data.get('tags', None)
-                        action = data.get('action_type', None)
+                        action = data.get('action', None)
                         intent = data.get('intent', None)
                         outcome = data.get('outcome', None)
                         if context:

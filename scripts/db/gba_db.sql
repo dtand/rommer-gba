@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS "annotations" (
 	"scene"	TEXT,
 	"tags"	TEXT,
 	"description"	TEXT,
-	"action_type"	TEXT,
+	"action"	TEXT,
 	"intent"	TEXT,
 	"outcome"	TEXT,
 	"created_at"	TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -27,10 +27,10 @@ def api_progress(session_id):
                             has_context = annotation_data.get('context', '').strip()
                             has_scene = annotation_data.get('scene', '').strip()
                             has_tags = annotation_data.get('tags', [])
-                            has_action_type = annotation_data.get('action_type', '').strip()
+                            has_action = annotation_data.get('action', '').strip()
                             has_intent = annotation_data.get('intent', '').strip()
                             has_outcome = annotation_data.get('outcome', '').strip()
-                            if has_context or has_scene or has_tags or has_action_type or has_intent or has_outcome:
+                            if has_context or has_scene or has_tags or has_action or has_intent or has_outcome:
                                 partial += 1
                 except (json.JSONDecodeError, IOError):
                     pass

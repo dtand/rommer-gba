@@ -87,7 +87,7 @@ function copyAnnotation(frame) {
                     context: data.annotations.context || '',
                     scene: data.annotations.scene || '',
                     tags: Array.isArray(data.annotations.tags) ? data.annotations.tags.join(', ') : (data.annotations.tags || ''),
-                    action_type: data.annotations.action_type || '',
+                    action: data.annotations.action || '',
                     intent: data.annotations.intent || '',
                     outcome: data.annotations.outcome || ''
                 };
@@ -163,7 +163,7 @@ function openModal() {
         document.getElementById('scene').value = '';
         document.getElementById('tags').value = '';
         // document.getElementById('description').value = '';  // Removed description field
-        document.getElementById('action_type').value = '';
+        document.getElementById('action').value = '';
         document.getElementById('intent').value = '';
         document.getElementById('outcome').value = '';
         
@@ -177,13 +177,13 @@ function openModal() {
         document.getElementById('tags').value = lastTags;
         
         // Disable action fields in bulk mode
-        document.getElementById('action_type').disabled = true;
+        document.getElementById('action').disabled = true;
         document.getElementById('intent').disabled = true;
         document.getElementById('outcome').disabled = true;
         // document.getElementById('description').disabled = true;  // Removed description field
     } else {
         // Enable all fields in normal mode
-        document.getElementById('action_type').disabled = false;
+        document.getElementById('action').disabled = false;
         document.getElementById('intent').disabled = false;
         document.getElementById('outcome').disabled = false;
         // document.getElementById('description').disabled = false;  // Removed description field
@@ -200,7 +200,7 @@ function openModal() {
             document.getElementById('scene').value = copiedAnnotation.scene;
             document.getElementById('tags').value = copiedAnnotation.tags;
             // document.getElementById('description').value = copiedAnnotation.description;  // Removed description field
-            document.getElementById('action_type').value = copiedAnnotation.action_type;
+            document.getElementById('action').value = copiedAnnotation.action;
             document.getElementById('intent').value = copiedAnnotation.intent;
             document.getElementById('outcome').value = copiedAnnotation.outcome;
             // Clear CNN confidence indicators
@@ -226,7 +226,7 @@ function openModal() {
                         const hasExistingContext = existingAnnotations.context && existingAnnotations.context.trim();
                         const hasExistingScene = existingAnnotations.scene && existingAnnotations.scene.trim();
                         const hasExistingTags = existingAnnotations.tags && existingAnnotations.tags.length > 0;
-                        const hasExistingActionType = existingAnnotations.action_type && existingAnnotations.action_type.trim();
+                        const hasExistingActionType = existingAnnotations.action && existingAnnotations.action.trim();
                         const hasExistingIntent = existingAnnotations.intent && existingAnnotations.intent.trim();
                         const hasExistingOutcome = existingAnnotations.outcome && existingAnnotations.outcome.trim();
 
@@ -240,7 +240,7 @@ function openModal() {
                             const tagsValue = Array.isArray(existingAnnotations.tags) ? 
                                 existingAnnotations.tags.join(', ') : (existingAnnotations.tags || '');
                             document.getElementById('tags').value = tagsValue;
-                            document.getElementById('action_type').value = existingAnnotations.action_type || '';
+                            document.getElementById('action').value = existingAnnotations.action || '';
                             document.getElementById('intent').value = existingAnnotations.intent || '';
                             document.getElementById('outcome').value = existingAnnotations.outcome || '';
                             usedExistingAnnotations = true;
@@ -274,7 +274,7 @@ function openModal() {
                             }
                             // Clear tags and action fields when using CNN predictions
                             document.getElementById('tags').value = '';
-                            document.getElementById('action_type').value = '';
+                            document.getElementById('action').value = '';
                             document.getElementById('intent').value = '';
                             document.getElementById('outcome').value = '';
                             usedCnnPredictions = true;
@@ -295,7 +295,7 @@ function openModal() {
                     
                     // Leave action fields empty unless populated by copied annotation or existing annotations
                     if (!copiedAnnotation && !usedExistingAnnotations) {
-                        document.getElementById('action_type').value = '';
+                        document.getElementById('action').value = '';
                         document.getElementById('intent').value = '';
                         document.getElementById('outcome').value = '';
                     }
@@ -312,7 +312,7 @@ function openModal() {
                     document.getElementById('tags').value = lastTags;
                     // document.getElementById('description').value = lastDescription;  // Removed description field
                     // Leave action fields empty
-                    document.getElementById('action_type').value = '';
+                    document.getElementById('action').value = '';
                     document.getElementById('intent').value = '';
                     document.getElementById('outcome').value = '';
                 });
@@ -323,7 +323,7 @@ function openModal() {
                 document.getElementById('scene').value = copiedAnnotation.scene;
                 document.getElementById('tags').value = copiedAnnotation.tags;
                 // document.getElementById('description').value = copiedAnnotation.description;  // Removed description field
-                document.getElementById('action_type').value = copiedAnnotation.action_type;
+                document.getElementById('action').value = copiedAnnotation.action;
                 document.getElementById('intent').value = copiedAnnotation.intent;
                 document.getElementById('outcome').value = copiedAnnotation.outcome;
             } else {
@@ -338,7 +338,7 @@ function openModal() {
                 document.getElementById('tags').value = lastTags;
                 document.getElementById('description').value = lastDescription;
                 // Leave action fields empty
-                document.getElementById('action_type').value = '';
+                document.getElementById('action').value = '';
                 document.getElementById('intent').value = '';
                 document.getElementById('outcome').value = '';
             }
@@ -419,19 +419,19 @@ function closeModal() {
     isBulkMode = false;
     
     // Re-enable all fields
-    document.getElementById('action_type').disabled = false;
+    document.getElementById('action').disabled = false;
     document.getElementById('intent').disabled = false;
     document.getElementById('outcome').disabled = false;
     // document.getElementById('description').disabled = false;  // Removed description field
     
     // Hide any custom input areas
     document.getElementById('context_custom').style.display = 'none';
-    document.getElementById('action_type_custom').style.display = 'none';
+    document.getElementById('action_custom').style.display = 'none';
     document.getElementById('intent_custom').style.display = 'none';
     
     // Clear custom input fields
     document.getElementById('context_input').value = '';
-    document.getElementById('action_type_input').value = '';
+    document.getElementById('action_input').value = '';
     document.getElementById('intent_input').value = '';
 }
 
@@ -444,7 +444,7 @@ function clearCopiedAnnotation() {
     document.getElementById('scene').value = '';
     document.getElementById('tags').value = '';
     // document.getElementById('description').value = '';  // Removed description field
-    document.getElementById('action_type').value = '';
+    document.getElementById('action').value = '';
     document.getElementById('intent').value = '';
     document.getElementById('outcome').value = '';
 }
@@ -507,7 +507,7 @@ function markCompleteAndSave() {
     const context = document.getElementById('context').value;
     const scene = document.getElementById('scene').value;
     const tagsInput = document.getElementById('tags').value;
-    const action_type = document.getElementById('action_type').value;
+    const action = document.getElementById('action').value;
     const intent = document.getElementById('intent').value;
     const outcome = document.getElementById('outcome').value;
     
@@ -519,7 +519,7 @@ function markCompleteAndSave() {
         scene: scene || '',
         tags: tags,
         description: '',  // Keep for backend compatibility
-        action_type: action_type || '',
+        action: action || '',
         intent: intent || '',
         outcome: outcome || '',
         complete: true  // Mark as complete
@@ -580,7 +580,7 @@ function saveAnnotationWithComplete(annotation) {
             // Check if annotation has meaningful data to mark as partial
             const hasData = annotation.context || annotation.scene || 
                           (annotation.tags && annotation.tags.length > 0) ||
-                          annotation.action_type || annotation.intent || annotation.outcome;
+                          annotation.action || annotation.intent || annotation.outcome;
             
             if (hasData) {
                 framesList.forEach(frame => {
@@ -628,7 +628,7 @@ function resetAnnotations() {
         scene: '',
         tags: [],
         description: '',
-        action_type: '',
+        action: '',
         intent: '',
         outcome: '',
         complete: false
@@ -688,12 +688,12 @@ function setupFormSubmission() {
         
         let context = document.getElementById('context').value;
         let scene = document.getElementById('scene').value;
-        let action_type = document.getElementById('action_type').value;
+        let action = document.getElementById('action').value;
         let intent = document.getElementById('intent').value;
         let outcome = document.getElementById('outcome').value;
 
         // Normalize values: replace spaces with underscores and lowercase if capitals or spaces present
-        [context, scene, action_type, intent, outcome] = [context, scene, action_type, intent, outcome].map(val => {
+        [context, scene, action, intent, outcome] = [context, scene, action, intent, outcome].map(val => {
             return (/[A-Z ]/.test(val)) ? val.toLowerCase().replace(/\s+/g, '_') : val;
         });
         
@@ -709,7 +709,7 @@ function setupFormSubmission() {
                 scene, 
                 tags,
                 description: '',  // Keep for backend compatibility
-                action_type: '', // Clear action fields in bulk mode
+                action: '', // Clear action fields in bulk mode
                 intent: '',
                 outcome: '',
                 complete: false // Regular save, not complete
@@ -721,7 +721,7 @@ function setupFormSubmission() {
                 scene, 
                 tags, 
                 description: '',  // Keep for backend compatibility
-                action_type: action_type || '',
+                action: action || '',
                 intent: intent || '',
                 outcome: outcome || '',
                 complete: false // Regular save, not complete

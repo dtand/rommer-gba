@@ -224,7 +224,7 @@ timestamp,region,frame,address,prev_val,curr_val,freq,pc,key_history,current_key
     "context": "battle",
     "scene": "battle_main", 
     "description": "Enemy health decreased from 45 to 7",
-    "action_type": "damage_dealt",
+    "action": "damage_dealt",
     "intent": "attack_enemy",
     "outcome": "success"
   }

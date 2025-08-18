@@ -45,10 +45,10 @@ def api_frames(session_id=None):
                             has_context = annotation_data.get('context', '').strip()
                             has_scene = annotation_data.get('scene', '').strip()
                             has_tags = annotation_data.get('tags', [])
-                            has_action_type = annotation_data.get('action_type', '').strip()
+                            has_action = annotation_data.get('action', '').strip()
                             has_intent = annotation_data.get('intent', '').strip()
                             has_outcome = annotation_data.get('outcome', '').strip()
-                            has_partial_data = bool(has_context or has_scene or has_tags or has_action_type or has_intent or has_outcome)
+                            has_partial_data = bool(has_context or has_scene or has_tags or has_action or has_intent or has_outcome)
                     except (json.JSONDecodeError, IOError):
                         is_complete = False
                         has_partial_data = False

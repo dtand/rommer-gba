@@ -157,7 +157,7 @@ class TrainingDataIngestor:
         
         cursor.execute("""
             INSERT OR REPLACE INTO annotations 
-            (session_uuid, frame_set_id, context, scene, tags, description, action_type, intent, outcome)
+            (session_uuid, frame_set_id, context, scene, tags, description, action, intent, outcome)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             session_uuid,
@@ -166,7 +166,7 @@ class TrainingDataIngestor:
             annotation_data.get('scene'),
             annotation_data.get('tags'),
             annotation_data.get('description'),
-            annotation_data.get('action_type'),
+            annotation_data.get('action'),
             annotation_data.get('intent'),
             annotation_data.get('outcome')
         ))

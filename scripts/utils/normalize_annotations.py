@@ -35,7 +35,7 @@ def main():
         changed = False
         changes = []
         # Fields to check
-        fields = ['context', 'scene', 'action_type', 'intent', 'outcome']
+        fields = ['context', 'scene', 'action', 'intent', 'outcome']
         for field in fields:
             val = data.get(field)
             if isinstance(val, str):

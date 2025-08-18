@@ -73,7 +73,7 @@
       "label": "Transition"
     }
   ],
-  "action_type_options": [
+  "action_options": [
     {
       "value": "combat",
       "label": "Combat"

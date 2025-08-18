@@ -7,7 +7,7 @@ function loadDropdownData() {
     populateDropdown('context', window.contextsLookup || []);
     // Scene is now a text input, not a dropdown
     // Use sorted arrays from actions-lookup.js
-    populateDropdown('action_type', window.actionsLookup || []);
+    populateDropdown('action', window.actionsLookup || []);
     populateDropdown('intent', window.intentsLookup || []);
     populateDropdown('outcome', window.outcomesLookup || []);
 }
@@ -41,7 +41,7 @@ function populateDropdown(fieldName, options) {
     });
     
     // Add custom option for relevant fields
-    if (['context', 'action_type', 'intent'].includes(fieldName)) {
+    if (['context', 'action', 'intent'].includes(fieldName)) {
         const customOption = document.createElement('option');
         customOption.value = 'custom';
         customOption.textContent = 'Add New +';

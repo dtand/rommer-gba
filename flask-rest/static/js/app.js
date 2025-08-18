@@ -23,7 +23,7 @@ let inputHistory = {
     scene: [],
     tags: [],
     description: [],
-    action_type: [],
+    action: [],
     intent: [],
     outcome: []
 };
@@ -33,7 +33,7 @@ let currentHistoryIndex = {
     scene: -1,
     tags: -1,
     description: -1,
-    action_type: -1,
+    action: -1,
     intent: -1,
     outcome: -1
 };

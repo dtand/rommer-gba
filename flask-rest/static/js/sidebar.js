@@ -96,10 +96,10 @@ function updateSidebar(frameId, isSelected = false, isLastAnnotated = false) {
                 }
                 
                 // Show action data if present
-                if (data.annotations.action_type || data.annotations.intent || data.annotations.outcome) {
+                if (data.annotations.action || data.annotations.intent || data.annotations.outcome) {
                     html += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #b3d7ff;">
                         <strong>Action:</strong><br>`;
-                    if (data.annotations.action_type) html += `<div style="margin: 2px 0;"><strong>Type:</strong> ${data.annotations.action_type}</div>`;
+                    if (data.annotations.action) html += `<div style="margin: 2px 0;"><strong>Type:</strong> ${data.annotations.action}</div>`;
                     if (data.annotations.intent) html += `<div style="margin: 2px 0;"><strong>Intent:</strong> ${data.annotations.intent}</div>`;
                     if (data.annotations.outcome) html += `<div style="margin: 2px 0;"><strong>Outcome:</strong> ${data.annotations.outcome}</div>`;
                     html += '</div>';

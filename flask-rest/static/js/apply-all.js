@@ -112,7 +112,7 @@ function updateApplyFieldInput(fieldId) {
         case 'tags':
             inputHtml = generateTagsInput(fieldId);
             break;
-        case 'action_type':
+        case 'action':
             inputHtml = generateActionTypeInput(fieldId);
             break;
         case 'intent':
@@ -167,9 +167,9 @@ function generateActionTypeInput(fieldId) {
     let inputHtml = '<select id="apply-value-' + fieldId + '" style="width: 100%; padding: 8px;" required>' +
         '<option value="">Select action type...</option>';
     
-    // Use global annotation config for action_type options
-    if (window.annotationConfig && window.annotationConfig.action_type_options) {
-        window.annotationConfig.action_type_options.forEach(option => {
+    // Use global annotation config for action options
+    if (window.annotationConfig && window.annotationConfig.action_options) {
+        window.annotationConfig.action_options.forEach(option => {
             inputHtml += '<option value="' + option.value + '">' + option.label + '</option>';
         });
     } else {
