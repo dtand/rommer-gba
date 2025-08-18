@@ -15,12 +15,14 @@ import {
   MemoryButton,
   LogoImage
 } from './TopNavBar.styled';
-import { FaLayerGroup, FaDatabase, FaFilter, FaFolderOpen, FaCheckCircle, FaSearch, FaMemory } from 'react-icons/fa';
-import { MdDoneAll } from 'react-icons/md';
+import { FaDatabase, FaCheckCircle, FaSearch, FaMemory } from 'react-icons/fa';
+import { MdDoneAll, MdTimeline } from 'react-icons/md';
+import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { useSessionContext } from '../../contexts/SessionContext';
-import { useAnnotationContext } from '../../contexts/AnnotationContext';
 import { CustomDropdown } from '../CustomDropdown/CustomDropdown';
 import { FrameContextFilter } from '../../api/frameContexts';
+import { useFrameDataContext } from '../../contexts/FrameDataContext';
+import CustomRangeInput from '../CustomRangeInput/CustomRangeInput';
 
 const filterOptions = [
   'All',
@@ -31,12 +33,16 @@ const filterOptions = [
 
 const TopNavBar: React.FC = () => {
   const { session, setSession, progress } = useSessionContext();
-  const { setFilter } = useAnnotationContext();
+  const { setFilter, setCurrentStartId, resetState, setEndRangeValue, fetchFrames, endRangeValue } = useFrameDataContext();
   const [filter, setFilterLocal] = useState('All');
-  // Use sessions from AppContent state via local state
   const [sessions, setSessions] = useState<any[]>([]);
+  const [showCustomRange, setShowCustomRange] = useState(false);
+  const [customStart, setCustomStart] = useState<string>(() => '1');
+  const [customEnd, setCustomEnd] = useState<string>(() => session?.metadata?.total_frame_sets ? String(session.metadata.total_frame_sets) : '');
+  const [appliedStart, setAppliedStart] = useState<string>('1');
+  const [appliedEnd, setAppliedEnd] = useState<string>(() => session?.metadata?.total_frame_sets ? String(session.metadata.total_frame_sets) : '');
+
   useEffect(() => {
-    // Fetch sessions on mount
     import('../../api/sessions').then(({ getSessions }) => {
       getSessions().then((data: any) => {
         setSessions(data.sessions || []);
@@ -50,12 +56,55 @@ const TopNavBar: React.FC = () => {
   const partial = progress?.partial ?? 0;
   const percent = Math.round((complete / totalFrames) * 100);
 
-  // Map UI filter to API filter
   const filterMap: Record<string, FrameContextFilter> = {
     'All': 'ALL',
     'Annotated': 'ANNOTATED',
     'Partially Annotated': 'PARTIALLY_ANNOTATED',
-    'Not Annotated': 'NOT_ANNOTATED'
+    'Not Annotated': 'NOT_ANNOTATED',
+  };
+
+  useEffect(() => {
+    setFilter(filterMap[filter]);
+  }, [filter]);
+
+  const handleCustomRange = () => {
+    setShowCustomRange(true);
+  };
+
+  const handleCustomRangeSubmit = () => {
+    setShowCustomRange(false);
+    setCurrentStartId(customStart);
+    if (!isNaN(Number(customEnd))) {
+      setEndRangeValue(Number(customEnd));
+    }
+    setAppliedStart(customStart);
+    setAppliedEnd(customEnd);
+    resetState();
+    // Set filter to 'ALL' for custom range mode
+    setFilterLocal('All');
+    // Fetch frames for the custom range
+    fetchFrames(customStart, false);
+  };
+
+  useEffect(() => {
+    // Update default end value if session changes
+    setCustomEnd(session?.metadata?.total_frame_sets ? String(session.metadata.total_frame_sets) : '');
+  }, [session?.metadata?.total_frame_sets]);
+
+  // Compute range label for Range button
+  const isCustomRange = appliedStart !== '1' || (appliedEnd && appliedEnd !== String(totalFrames));
+  const rangeLabel = isCustomRange ? `${appliedStart}–${appliedEnd}` : 'All Frames';
+
+  const handleResetRange = () => {
+    setCustomStart('1');
+    setCustomEnd(String(totalFrames));
+    setAppliedStart('1');
+    setAppliedEnd(String(totalFrames));
+    setCurrentStartId('1');
+    setEndRangeValue(null);
+    resetState();
+    setFilterLocal('All');
+    fetchFrames('1', false);
   };
 
   return (
@@ -67,6 +116,7 @@ const TopNavBar: React.FC = () => {
             label="Sessions"
             options={sessions.map((s: any) => s.session_id)}
             value={selectedSession}
+            width={"400px"}
             onChange={id => {
               const found = sessions.find((s: any) => s.session_id === id);
               setSession(found ? { id: found.session_id, metadata: found.metadata } : null);
@@ -76,18 +126,44 @@ const TopNavBar: React.FC = () => {
             label="Filters"
             options={filterOptions}
             value={filter}
+            width={"200px"}
             onChange={val => {
               setFilterLocal(val);
-              setFilter(filterMap[val]); // Update context filter and reset start position
             }}
           />
         </LeftGroup>
         <RightGroup>
+          <div style={{ position: 'relative', display: 'inline-block', paddingLeft: 42 }}>
+            <Button
+              style={{ marginLeft: 8 }}
+              onClick={() => setShowCustomRange(show => !show)}
+            >
+              <Icon><MdTimeline /></Icon>
+              {rangeLabel}
+              <span style={{ marginLeft: 6, fontSize: '1.1em', verticalAlign: 'middle' }}>
+                {showCustomRange ? <FaChevronUp /> : <FaChevronDown />}
+              </span>
+            </Button>
+            {showCustomRange && (
+              <CustomRangeInput
+                start={customStart}
+                end={customEnd}
+                setStart={setCustomStart}
+                setEnd={setCustomEnd}
+                onApply={handleCustomRangeSubmit}
+                onCancel={() => setShowCustomRange(false)}
+                onReset={handleResetRange}
+                isCustomRange={!!isCustomRange}
+              />
+            )}
+          </div>
           <Button><Icon><MdDoneAll /></Icon>Apply All</Button>
           <Button><Icon><FaDatabase /></Icon>Inject to DB</Button>
           <Button><Icon><FaCheckCircle /></Icon>Validate</Button>
           <Button><Icon><FaSearch /></Icon>Review</Button>
-          <MemoryButton onClick={() => window.location.href = '/memory-analysis'}>
+        </RightGroup>
+        <RightGroup style={{ marginLeft: 'auto' }}>
+            <MemoryButton onClick={() => window.location.href = '/memory-analysis'}>
             <Icon><FaMemory /></Icon>Memory
           </MemoryButton>
         </RightGroup>

@@ -1,28 +1,40 @@
 import React from 'react';
-import { FaRegImage } from 'react-icons/fa';
+import { ListingContainer, FrameIdPill } from './FrameIdListing.styled';
+
+export type FrameIdListStyle = 'pill' | 'comma';
 
 interface FrameIdListingProps {
   modalFrameIds: number[];
+  listStyle?: FrameIdListStyle;
 }
 
-const FrameIdListing: React.FC<FrameIdListingProps> = ({ modalFrameIds }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '10px', maxWidth: '100%', overflowX: 'auto' }}>
-    <FaRegImage size={18} style={{ color: '#888', marginRight: '2px' }} />
-    {Array.isArray(modalFrameIds) && modalFrameIds.length > 0 && (
-      <>
-        {modalFrameIds.slice(0, 10).map((frameId, idx) => (
-          <span key={frameId || idx} style={{ fontSize: '0.85em', background: '#e0e0e0', color: '#555', borderRadius: '10px', padding: '2px 10px', fontWeight: 500 }}>
-            {frameId}
-          </span>
-        ))}
-        {modalFrameIds.length > 12 && (
-          <span style={{ fontSize: '0.85em', background: '#e0e0e0', color: '#555', borderRadius: '10px', padding: '2px 10px', fontWeight: 500 }}>
-            +{modalFrameIds.length - 10} more
-          </span>
-        )}
-      </>
-    )}
-  </div>
-);
+const FrameIdListing: React.FC<FrameIdListingProps> = ({ modalFrameIds, listStyle = 'pill' }) => {
+  if (!Array.isArray(modalFrameIds) || modalFrameIds.length === 0) return null;
+
+  if (listStyle === 'comma') {
+    const idsToShow = modalFrameIds.slice(0, 10);
+    const idsString = idsToShow.join(', ');
+    return (
+      <ListingContainer>
+        <span>
+          {idsString}
+          {modalFrameIds.length > 10 ? ` +${modalFrameIds.length - 10} more` : ''}
+        </span>
+      </ListingContainer>
+    );
+  }
+
+  // pill style (default)
+  return (
+    <ListingContainer>
+      {modalFrameIds.slice(0, 10).map((frameId, idx) => (
+        <FrameIdPill key={frameId || idx}>{frameId}</FrameIdPill>
+      ))}
+      {modalFrameIds.length > 10 && (
+        <FrameIdPill>+{modalFrameIds.length - 10} more</FrameIdPill>
+      )}
+    </ListingContainer>
+  );
+};
 
 export default FrameIdListing;

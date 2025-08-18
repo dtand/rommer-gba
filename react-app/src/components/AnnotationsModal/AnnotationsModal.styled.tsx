@@ -52,16 +52,16 @@ export const ModalPre = styled.pre`
 
 export const ModalDivider = styled.div`
   width: 100%;
-  height: 1px;
+  height: 2px;
   background: #e0e0e0;
-  margin: 9px 0;
+  margin: 4px 0;
 `;
 
 export const ModalSection = styled.div`
   display: flex;
   flex-direction: row;
   gap: 32px;
-  margin-bottom: 18px;
+  margin-bottom: 4px;
 `;
 
 export const ModalCol = styled.div`
@@ -72,12 +72,10 @@ export const ModalCol = styled.div`
 `;
 
 export const FrameImagePreview = styled.img`
-  width: 420px;
-  height: 420px;
+  width: 100%;
   object-fit: contain;
   border-radius: 8px;
-  background: #f7f7f7;
-  border: 1px solid #e0e0e0;
+  background: none;
 `;
 
 export const ModalButtonRow = styled.div`
@@ -85,23 +83,6 @@ export const ModalButtonRow = styled.div`
   gap: 16px;
   justify-content: flex-start;
   margin-top: 12px;
-`;
-
-export const TagList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 6px;
-  justify-content: flex-start;
-  align-items: flex-start;
-`;
-
-export const TagItem = styled.span`
-  background: #e0e0e0;
-  color: #333;
-  border-radius: 12px;
-  padding: 4px 10px;
-  font-size: 0.95rem;
 `;
 
 export const QuickSelectTags = styled.div`
@@ -117,6 +98,34 @@ export const QuickTagButton = styled.button`
   padding: 4px 10px;
   font-size: 0.95rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background 0.15s;
+  &:hover {
+    background: #e0e0e0;
+  }
+`;
+
+export const TagActionButton = styled.button`
+  background: #f7f7f7;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 0;
+  font-size: 0.95rem;
+  cursor: pointer;
+  width: 110px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background 0.15s;
   &:hover {
     background: #e0e0e0;
   }
@@ -124,7 +133,6 @@ export const QuickTagButton = styled.button`
 
 export const ModalTagsRow = styled.div`
   width: 100%;
-  margin-top: 8px;
   margin-bottom: 32px;
   display: flex;
   flex-direction: column;

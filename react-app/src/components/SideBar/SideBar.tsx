@@ -1,16 +1,20 @@
 import React from 'react';
-import { Aside, MenuTitle, AnnotationContainer, TagPillContainer, TagPill, ActionList } from './SideBar.styled';
-import { FaGamepad, FaRegImage, FaUser, FaRobot } from 'react-icons/fa';
-import { useAnnotationContext } from '../../contexts/AnnotationContext';
+import { Aside, MenuTitle, TagPillContainer, TagPill, ActionList } from './SideBar.styled';
+import { FaRegImage, FaUser, FaRobot } from 'react-icons/fa';
+import { useFrameDataContext, getFrameDataById } from '../../contexts/FrameDataContext';
+import { useFrameSelection } from '../../contexts/FrameSelectionContext';
 
 const Divider = () => (
   <div style={{ width: '100%', height: '1px', background: '#e0e0e0', margin: '12px 0' }} />
 );
 
 const SideBar: React.FC = () => {
-  const { activeFrame, activeFrameImage, activeFrameId } = useAnnotationContext();
-
-  const frameIdText = activeFrameId != null && activeFrameId !== undefined ? `Frame: ${activeFrameId}` : 'No frame selected';
+  const { frameContexts, frameImages } = useFrameDataContext();
+  const { activeFrameId } = useFrameSelection();
+  const frameData = getFrameDataById(frameContexts, frameImages, activeFrameId || '');
+  const activeFrame = frameData.context;
+  const activeFrameImage = frameData.image;
+  const frameIdText = activeFrameId ? `Frame: ${activeFrameId}` : 'No frame selected';
   const annotations = activeFrame?.annotations;
   const cnnAnnotations = activeFrame?.cnn_annotations;
   const framesInSet = activeFrame?.frames_in_set;
@@ -19,11 +23,10 @@ const SideBar: React.FC = () => {
   const isAnnotations = annotations && Object.keys(annotations).length > 0;
   const isCNN = !isAnnotations && cnnAnnotations;
 
-  let hasButtonPresses = false;
+  // Remove hasButtonPresses
   let buttonPresses: string[] = [];
   if (Array.isArray(buttons)) {
     buttonPresses = buttons.filter(b => b && b !== 'None');
-    hasButtonPresses = buttonPresses.length > 0;
   }
 
   // Get annotation values
@@ -31,7 +34,7 @@ const SideBar: React.FC = () => {
   const contextValue = annotationSource?.context?.prediction || annotationSource?.context || '';
   const sceneValue = annotationSource?.scene?.prediction || annotationSource?.scene || '';
   const tagsValue = Array.isArray(annotationSource?.tags) ? annotationSource.tags : [];
-  const actionType = annotationSource?.action_type || '';
+  const actionType = annotationSource?.action || '';
   const intent = annotationSource?.intent || '';
   const outcome = annotationSource?.outcome || '';
 

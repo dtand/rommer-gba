@@ -26,7 +26,7 @@ export const FrameItem = styled.div<{
   $notAnnotated?: boolean;
 }>`
   background: #fff;
-  border: 6px solid #ccc;
+  border: 4px solid rgba(0, 0, 0, 0.1);
   border-radius: 12px;
   padding: 0;
   text-align: center;
@@ -37,7 +37,7 @@ export const FrameItem = styled.div<{
   justify-content: stretch;
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   font-family: 'Inter', 'Nunito', 'Segoe UI', 'Avenir', Helvetica, Arial, sans-serif;
 
   ${({ $notAnnotated }) => $notAnnotated && css`
@@ -60,7 +60,10 @@ export const FrameItem = styled.div<{
 `;
 
 export const FrameImage = styled.img`
-  border-radius: 6px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -72,4 +75,32 @@ export const FramePlaceholder = styled.div`
   height: 100%;
   background: #eee;
   border-radius: 6px;
+`;
+
+export const FrameStatusIcon = styled.div`
+  position: absolute;
+  right: 0px;
+  bottom: 0px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 50%;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  font-size: 1.2em;
+`;
+
+export const FrameMetaRow = styled.div<{ $complete?: boolean; $partial?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.92em;
+  color: #444;
+  min-height: 22px;
+  background: ${({ $complete, $partial }) =>
+    $complete ? '#e8fbe8' : $partial ? '#fff7e0' : 'transparent'};
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
 `;

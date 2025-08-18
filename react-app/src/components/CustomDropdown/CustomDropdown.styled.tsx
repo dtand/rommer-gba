@@ -1,16 +1,12 @@
 import styled from 'styled-components';
 
-export const DropdownWrapper = styled.div`
+export const DropdownWrapper = styled.div<{ width?: string }>`
   position: relative;
-  min-width: 400px;
-  width: 100%;
-  max-width: 600px;
+  width: ${({ width }) => width || '100%'};
 `;
 
-export const DropdownButton = styled.button`
-  width: 100%;
-  min-width: 400px;
-  max-width: 600px;
+export const DropdownButton = styled.button<{ width?: string }>`
+  width: ${({ width }) => width || '100%'};
   padding: 8px 12px;
   background: #fff;
   color: #222;
@@ -27,13 +23,11 @@ export const DropdownButton = styled.button`
   font-family: 'Inter', 'Nunito', 'Segoe UI', 'Avenir', Helvetica, Arial, sans-serif;
 `;
 
-export const DropdownList = styled.ul`
+export const DropdownList = styled.ul<{ width?: string }>`
   position: absolute;
   top: 110%;
   left: 0;
-  width: 100%;
-  min-width: 400px;
-  max-width: 600px;
+  width: ${({ width }) => width || '100%'};
   background: #fff;
   border: 2px solid #d3d3d3;
   border-radius: 4px;

@@ -6,21 +6,21 @@ import {
   ModalTitle,
   ModalDivider,
   ModalSection,
-  FrameImagePreview,
   ModalButtonRow,
-  TagList,
-  TagItem,
-  QuickSelectTags,
-  QuickTagButton,
-  ModalTagsRow,
   MarkCompleteButton,
   SaveButton
 } from './AnnotationsModal.styled';
-import { CustomDropdownWithAddNew } from '../CustomDropdown/CustomDropdown';
-import { FaGamepad, FaRegImage } from 'react-icons/fa';
 import FrameIdListing from '../FrameIdListing/FrameIdListing';
 import { useSessionContext } from '../../contexts/SessionContext';
-import { useAnnotationContext } from '../../contexts/AnnotationContext';
+import { getFrameDataById, useFrameDataContext } from '../../contexts/FrameDataContext';
+import { useFrameSelection } from '../../contexts/FrameSelectionContext';
+import FramesCompleteNotification from '../FramesCompleteNotification/FramesCompleteNotification';
+import { useAnnotationFieldsCache } from '../../contexts/AnnotationFieldsCacheContext';
+import TagInputSection from '../TagInputSection/TagInputSection';
+import DropdownSection from '../DropdownSection/DropdownSection';
+import FramePreviewSection from '../FramePreviewSection/FramePreviewSection';
+import AllTagsPanel from '../AllTagsPanel/AllTagsPanel';
+import { MdEditNote } from 'react-icons/md'; // annotation/pen on paper icon
 
 const getInitialValues = (activeFrame: any) => {
   let source = activeFrame?.annotations && Object.keys(activeFrame.annotations).length > 0
@@ -30,48 +30,48 @@ const getInitialValues = (activeFrame: any) => {
     context: source.context?.prediction || source.context || '',
     scene: source.scene?.prediction || source.scene || '',
     tags: Array.isArray(source.tags) ? source.tags : [],
-    action: source.action_type?.prediction || source.action_type || '',
+    action: source.action?.prediction || source.action || '',
     intent: source.intent?.prediction || source.intent || '',
     outcome: source.outcome?.prediction || source.outcome || '',
   };
 };
 
 const AnnotationsModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen, onClose }) => {
-  const { session } = useSessionContext();
-  const {
-    selectedFrameIds,
-    activeFrame,
-    activeFrameImage,
-    selectedFrameContexts,
-    setFrameContexts,
-    setSelectedIndices,
-    setSelectedFrameIds
-  } = useAnnotationContext();
-  // Get annotationFields from session context
-  const { annotationFields } = useSessionContext();
+  const { session, updateRecentFields, recentAnnotationFields, previousAnnotation, setPreviousAnnotation } = useSessionContext();
+  const { getFields } = useAnnotationFieldsCache();
+  const annotationFields = session?.metadata?.game_name ? getFields(session.metadata.game_name) : undefined;
+
+  const { frameContexts, frameImages, setFrameContexts, updateFrameContexts } = useFrameDataContext();
+  const { activeFrameId, selectedFrameIds } = useFrameSelection();
+  
+  const activeFrameData = getFrameDataById(frameContexts, frameImages, activeFrameId);
+  const activeFrame = activeFrameData.context;
+  const activeFrameImage = activeFrameData.image;
+  
   const initial = getInitialValues(activeFrame);
   const [tags, setTags] = useState<string[]>(initial.tags);
   const [tagInput, setTagInput] = useState('');
   const [action, setAction] = useState(initial.action);
-  const [intent, setIntent] = useState('');
-  const [outcome, setOutcome] = useState('');
+  const [intent, setIntent] = useState(initial.intent);
+  const [outcome, setOutcome] = useState(initial.outcome);
   const [context, setContext] = useState(initial.context);
   const [scene, setScene] = useState(initial.scene);
   const [notification, setNotification] = useState<string | null>(null);
-
-  // Local state for dropdown options
   const [contextOptions, setContextOptions] = useState<string[]>(annotationFields?.contexts || []);
   const [sceneOptions, setSceneOptions] = useState<string[]>(annotationFields?.scenes || []);
   const [actionOptions, setActionOptions] = useState<string[]>(annotationFields?.actions || []);
   const [intentOptions, setIntentOptions] = useState<string[]>(annotationFields?.intents || []);
   const [outcomeOptions, setOutcomeOptions] = useState<string[]>(annotationFields?.outcomes || []);
   const [tagsOptions, setTagsOptions] = useState<string[]>(annotationFields?.tags || []);
+  const [showAllTags, setShowAllTags] = useState(false);
 
   React.useEffect(() => {
     setTags(initial.tags);
     setAction(initial.action);
     setContext(initial.context);
     setScene(initial.scene);
+    setIntent(''); // Always clear intent on frame change
+    setOutcome(''); // Always clear outcome on frame change
     setContextOptions(annotationFields?.contexts || []);
     setSceneOptions(annotationFields?.scenes || []);
     setActionOptions(annotationFields?.actions || []);
@@ -80,9 +80,35 @@ const AnnotationsModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({
     setTagsOptions(annotationFields?.tags || []);
   }, [activeFrame, annotationFields]);
 
-  if (!isOpen) return null;
+  // Compute quick select tags: first from recent, then from annotationFields (excluding recents)
+  const maxQuickSelects = 16;
+  const recentTags = recentAnnotationFields.tags || [];
+  const annotationTags = annotationFields?.tags || [];
+  const remainingTags = annotationTags.filter(tag => !recentTags.includes(tag));
+  const quickSelectTags = [...recentTags, ...remainingTags].slice(0, maxQuickSelects);
 
-  // Handle adding a tag
+  // Helper to exit modal immediately, but keep notification
+  const [shouldRenderModal, setShouldRenderModal] = useState(true);
+  const [completedFrameIds, setCompletedFrameIds] = useState<number[]>([]);
+  const [showNotification, setShowNotification] = useState(false);
+
+  const exitModal = () => {
+    setShouldRenderModal(false);
+    setShowNotification(true);
+    setTimeout(() => {
+      setNotification(null);
+      setCompletedFrameIds([]);
+      setShowNotification(false);
+      onClose();
+      setShouldRenderModal(true); // reset for next open
+    }, 2500); // notification stays for 2.5s
+  };
+
+  const handleNotificationClose = () => {
+    setShowNotification(false);
+    setNotification(null);
+    setCompletedFrameIds([]);
+  };
 
   const handleAddTag = () => {
     if (tagInput && !tags.includes(tagInput)) {
@@ -96,15 +122,17 @@ const AnnotationsModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({
   };
 
   const handleMarkComplete = async () => {
+    // If action is blank, do not send intent or outcome
     const annotation = {
       context,
       scene,
       tags,
       action,
-      intent,
-      outcome,
+      intent: action ? intent : undefined,
+      outcome: action ? outcome : undefined,
       complete: true
     };
+    setPreviousAnnotation(annotation);
     const payload = {
       frames: selectedFrameIds,
       annotation
@@ -117,14 +145,18 @@ const AnnotationsModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({
       });
       if (response.ok) {
         setNotification('Frames marked complete!');
-        setTimeout(() => setNotification(null), 2500);
-        // Directly update annotation context here
-        setFrameContexts((prev: any[]) => prev.map((ctx: any, idx: number) =>
-          selectedFrameIds.includes(idx + 1) ? { ...ctx, annotations: { ...ctx.annotations, complete: true } } : ctx
+        setCompletedFrameIds(selectedFrameIds.map(id => Number(id)));
+        setFrameContexts((prev: any[]) => prev.map((ctx: any) =>
+          selectedFrameIds.includes(ctx.frame_set_id) ? { ...ctx, annotations: { ...ctx.annotations, complete: true } } : ctx
         ));
-        setSelectedIndices([]);
-        setSelectedFrameIds([]);
-        setTimeout(() => onClose(), 1200);
+        if (typeof updateFrameContexts === 'function') {
+          updateFrameContexts(selectedFrameIds, annotation);
+        }
+        // Update recent fields
+        if (context) updateRecentFields('contexts', context);
+        if (scene) updateRecentFields('scenes', scene);
+        tags.forEach(tag => updateRecentFields('tags', tag));
+        exitModal();
       } else {
         setNotification('Failed to mark frames complete.');
         setTimeout(() => setNotification(null), 2500);
@@ -135,145 +167,95 @@ const AnnotationsModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({
     }
   };
 
+  const handleSave = () => {
+    setNotification('Saved!');
+    setCompletedFrameIds(selectedFrameIds.map(id => Number(id)));
+    // Update recent fields
+    if (context) updateRecentFields('contexts', context);
+    if (scene) updateRecentFields('scenes', scene);
+    tags.forEach(tag => updateRecentFields('tags', tag));
+    exitModal();
+  };
+
+  if (!isOpen && !notification) return null;
+
   return (
-    <ModalOverlay>
-      <ModalContent>
-        <CloseButton onClick={onClose}>×</CloseButton>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: '10px', maxWidth: '100%', overflowX: 'auto' }}>
-          <ModalTitle>Annotate Selected Frames</ModalTitle>
-          <FrameIdListing modalFrameIds={selectedFrameIds} />
-        </div>
-        <ModalDivider />
-        {/* Section 1 */}
-        <ModalSection>
-          <div style={{ display: 'grid', gridTemplateColumns: '440px 1fr', gap: '56px', alignItems: 'stretch', minHeight: '520px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              {activeFrameImage ? (
-                <FrameImagePreview src={activeFrameImage} alt="Active Frame" />
-              ) : (
-                <FrameImagePreview src="/placeholder.png" alt="No Image" />
-              )}
-              <div style={{ marginTop: '18px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                <FaGamepad size={22} style={{ color: '#888' }} />
-                {Array.isArray(activeFrame?.buttons) && activeFrame.buttons.filter((b: string) => b && b !== 'None').length > 0 ? (
-                  <TagList style={{ justifyContent: 'flex-start', alignItems: 'center', flexWrap: 'nowrap', gap: '8px', marginBottom: 0 }}>
-                    {activeFrame.buttons.filter((b: string) => b && b !== 'None').map((btn: string, idx: number) => (
-                      <TagItem key={idx}>{btn}</TagItem>
-                    ))}
-                  </TagList>
-                ) : (
-                  <span style={{ color: '#aaa', fontSize: '1rem' }}>No buttons for selections</span>
-                )}
-              </div>
+    <>
+      {shouldRenderModal && isOpen && (
+        <ModalOverlay>
+          <ModalContent>
+            <CloseButton onClick={exitModal}>×</CloseButton>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', maxWidth: '100%', overflowX: 'auto' }}>
+              <ModalTitle>
+                <MdEditNote style={{ marginRight: 8, verticalAlign: 'middle', fontSize: 32 }} />
+                Annotate Frame Set
+              </ModalTitle>
+              <FrameIdListing modalFrameIds={selectedFrameIds.map(id => Number(id))} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', justifyContent: 'flex-start', width: '100%', height: '100%', marginTop: '12px' }}>
-              {/* All dropdowns and inputs stacked here, now vertically centered */}
-              <div>
-                <label><strong>Context:</strong></label>
-                <CustomDropdownWithAddNew
-                  label="Select context"
-                  options={[...contextOptions]}
-                  value={context}
-                  onChange={setContext}
-                  onAddNew={newVal => setContextOptions(prev => [...prev, newVal])}
-                />
+            <ModalDivider />
+            {/* Section 1 */}
+            <ModalSection>
+              <div style={{ display: 'grid', gridTemplateColumns: '440px 1fr', gap: '56px', alignItems: 'stretch', minHeight: '520px' }}>
+                <FramePreviewSection activeFrameImage={activeFrameImage || null} activeFrame={activeFrame} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', justifyContent: 'flex-start', width: '100%', height: '100%', marginTop: '12px' }}>
+                  <DropdownSection
+                    context={context}
+                    setContext={setContext}
+                    contextOptions={contextOptions}
+                    setContextOptions={setContextOptions}
+                    scene={scene}
+                    setScene={setScene}
+                    sceneOptions={sceneOptions}
+                    setSceneOptions={setSceneOptions}
+                    action={action}
+                    setAction={setAction}
+                    actionOptions={actionOptions}
+                    setActionOptions={setActionOptions}
+                    intent={intent}
+                    setIntent={setIntent}
+                    intentOptions={intentOptions}
+                    setIntentOptions={setIntentOptions}
+                    outcome={outcome}
+                    setOutcome={setOutcome}
+                    outcomeOptions={outcomeOptions}
+                    setOutcomeOptions={setOutcomeOptions}
+                  />
+                </div>
               </div>
-              <div>
-                <label><strong>Scene:</strong></label>
-                <CustomDropdownWithAddNew
-                  label="Select scene"
-                  options={[...sceneOptions]}
-                  value={scene}
-                  onChange={setScene}
-                  onAddNew={newVal => setSceneOptions(prev => [...prev, newVal])}
-                />
-              </div>
-              <div>
-                <label><strong>Action:</strong></label>
-                <CustomDropdownWithAddNew
-                  label="Select action"
-                  options={[...actionOptions]}
-                  value={action}
-                  onChange={setAction}
-                  onAddNew={newVal => setActionOptions(prev => [...prev, newVal])}
-                />
-              </div>
-              <div>
-                <label><strong>Intent:</strong></label>
-                <CustomDropdownWithAddNew
-                  label="Select intent"
-                  options={[...intentOptions]}
-                  value={intent}
-                  onChange={setIntent}
-                  onAddNew={newVal => setIntentOptions(prev => [...prev, newVal])}
-                />
-              </div>
-              <div>
-                <label><strong>Outcome:</strong></label>
-                <CustomDropdownWithAddNew
-                  label="Select outcome"
-                  options={[...outcomeOptions]}
-                  value={outcome}
-                  onChange={setOutcome}
-                  onAddNew={newVal => setOutcomeOptions(prev => [...prev, newVal])}
-                />
-              </div>
-            </div>
-          </div>
-        </ModalSection>
-        <ModalTagsRow>
-          <TagList style={{ justifyContent: 'flex-start', width: '100%' }}>
-            {tags.map(tag => <TagItem key={tag}>{tag}</TagItem>)}
-          </TagList>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start', width: '100%' }}>
-            <input
-              type="text"
-              value={tagInput}
-              onChange={e => {
-                const val = e.target.value;
-                if (/^[a-zA-Z0-9_]*$/.test(val)) {
-                  setTagInput(val);
-                }
-              }}
-              placeholder="Add tag (alphanumeric & underscores only)"
-              style={{ textAlign: 'left', width: '40%', minWidth: '180px', maxWidth: '340px', padding: '10px 14px', fontSize: '1rem', border: '2px solid #d3d3d3', borderRadius: '4px' }}
+            </ModalSection>
+            <TagInputSection
+              tags={tags}
+              setTags={setTags}
+              tagInput={tagInput}
+              setTagInput={setTagInput}
+              quickSelectTags={quickSelectTags}
+              handleAddTag={handleAddTag}
+              handleQuickTag={handleQuickTag}
+              showAllTags={showAllTags}
+              setShowAllTags={setShowAllTags}
             />
-            <QuickTagButton style={{ marginLeft: 0 }} onClick={handleAddTag}>Add Tag+</QuickTagButton>
-          </div>
-          <QuickSelectTags style={{ justifyContent: 'flex-start', width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {Array.from({ length: 2 }).map((_, rowIdx) => (
-              <div key={rowIdx} style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
-                {tagsOptions.slice(rowIdx * 8, rowIdx * 8 + 8).map(tag => (
-                  <QuickTagButton key={tag} onClick={() => handleQuickTag(tag)}>{tag}</QuickTagButton>
-                ))}
-              </div>
-            ))}
-          </QuickSelectTags>
-        </ModalTagsRow>
-        <ModalDivider />
-        <ModalButtonRow>
-          <MarkCompleteButton onClick={handleMarkComplete}>Mark as complete</MarkCompleteButton>
-          <SaveButton>Save</SaveButton>
-        </ModalButtonRow>
-        {notification && (
-          <div style={{
-            position: 'fixed',
-            top: 32,
-            right: 32,
-            background: '#43e97b',
-            color: '#fff',
-            padding: '16px 32px',
-            borderRadius: '12px',
-            fontWeight: 600,
-            fontSize: '1.1rem',
-            boxShadow: '0 2px 12px #43e97b55',
-            zIndex: 99999
-          }}>
-            {notification}
-          </div>
-        )}
-      </ModalContent>
-    </ModalOverlay>
+            {showAllTags && (
+              <AllTagsPanel
+                tags={annotationFields?.tags || []}
+                onSelect={tag => {
+                  if (!tags.includes(tag)) setTags([...tags, tag]);
+                  // Do not close the panel on select
+                }}
+                onClose={() => setShowAllTags(false)}
+              />
+            )}
+            <ModalDivider />
+            <ModalButtonRow>
+              <MarkCompleteButton onClick={handleMarkComplete}>Mark as complete</MarkCompleteButton>
+              <SaveButton onClick={handleSave}>Save</SaveButton>
+            </ModalButtonRow>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+      {notification && showNotification && (
+        <FramesCompleteNotification frameIds={completedFrameIds} onClose={handleNotificationClose} />
+      )}
+    </>
   );
 };
 

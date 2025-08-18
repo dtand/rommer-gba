@@ -1,47 +1,30 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import TopNavBar from './components/TopNavBar/TopNavBar';
 import SideBar from './components/SideBar/SideBar';
 import AnnotationGrid from './components/AnnotationGrid/AnnotationGrid';
 import AnnotationsModal from './components/AnnotationsModal/AnnotationsModal';
 import LoadingOverlay from './components/LoadingOverlay/LoadingOverlay';
-import { getSessions, SessionsResponse, SessionInfo } from './api/sessions';
+import { getSessions, SessionsResponse } from './api/sessions';
 import { fetchAggregateFields } from './api/aggregateFields';
 import { getProgress } from './api/progress';
 import { AppContainer, MainContent, GridArea } from './App.styled';
+import { AnnotationFieldsCacheProvider } from './contexts/AnnotationFieldsCacheContext';
 import { SessionProvider, useSessionContext } from './contexts/SessionContext';
-import { AnnotationProvider, useAnnotationContext } from './contexts/AnnotationContext';
+import { FrameDataProvider, useFrameDataContext } from './contexts/FrameDataContext';
+import { FrameSelectionProvider } from './contexts/FrameSelectionContext';
 
 const AppContent: React.FC = () => {
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalAnnotations, setModalAnnotations] = useState<any>(null);
   const {
     session,
     setSession,
-    progress,
     setProgress,
-    annotationFields,
     setAnnotationFields
   } = useSessionContext();
-  const {
-    selectedIndices,
-    setSelectedIndices,
-    setActiveFrame,
-    setActiveFrameImage,
-    setActiveFrameId,
-    setSelectedFrameIds,
-    selectedFrameIds,
-    frameContexts,
-    setFrameContexts,
-    activeFrame,
-    activeFrameImage,
-    activeFrameId,
-    isBatchLoading
-  } = useAnnotationContext();
+  const { isLoading } = useFrameDataContext();
 
   useEffect(() => {
     getSessions().then((data: SessionsResponse) => {
-      setSessions(data.sessions || []);
       if (data.sessions && data.sessions.length > 0) {
         setSession({ id: data.sessions[0].session_id, metadata: data.sessions[0].metadata });
       }
@@ -52,15 +35,9 @@ const AppContent: React.FC = () => {
     if (session?.id) {
       fetchAggregateFields(session.id).then(setAnnotationFields);
       getProgress(session.id).then(setProgress);
-      setSelectedIndices([]);
-      setActiveFrame(null);
-      setActiveFrameImage(null);
-      setActiveFrameId(null);
-      setModalAnnotations(null);
-      setSelectedFrameIds([]);
       setIsModalOpen(false);
     }
-  }, [session?.id, setAnnotationFields, setProgress, setSelectedIndices, setActiveFrame, setActiveFrameImage, setActiveFrameId, setModalAnnotations, setSelectedFrameIds]);
+  }, [session?.id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,7 +51,6 @@ const AppContent: React.FC = () => {
 
   return (
     <AppContainer>
-      {isBatchLoading && <LoadingOverlay />}
       <TopNavBar />
       <MainContent>
         <SideBar />
@@ -82,18 +58,28 @@ const AppContent: React.FC = () => {
           <AnnotationGrid />
         </GridArea>
       </MainContent>
-      <AnnotationsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}
-      />
+      <AnnotationsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      {isLoading && <LoadingOverlay />}
     </AppContainer>
   );
 };
 
+const AllProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <AnnotationFieldsCacheProvider>
+    <SessionProvider>
+      <FrameDataProvider>
+        <FrameSelectionProvider>
+          {children}
+        </FrameSelectionProvider>
+      </FrameDataProvider>
+    </SessionProvider>
+  </AnnotationFieldsCacheProvider>
+);
+
 const App: React.FC = () => (
-  <SessionProvider>
-    <AnnotationProvider>
-      <AppContent />
-    </AnnotationProvider>
-  </SessionProvider>
+  <AllProviders>
+    <AppContent />
+  </AllProviders>
 );
 
 export default App;
